@@ -3,3 +3,5 @@ dist
 .env.local
 supabase/.temp
 supabase/.branches
+timber-erp.zip
+.env.production.local

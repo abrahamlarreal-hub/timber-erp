@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL
+// 'proxy' = talk to Supabase through the dev server (used for the in-session preview)
+const url = import.meta.env.VITE_SUPABASE_URL === 'proxy' ? window.location.origin : import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
 export const configured = Boolean(url && key)
 export const supabase = createClient(url || 'http://localhost', key || 'missing', {

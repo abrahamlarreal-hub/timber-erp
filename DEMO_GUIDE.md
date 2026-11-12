@@ -56,7 +56,7 @@ logged-in user) sees the same numbers instantly. Nothing on any report is typed 
 ### 4. Sales orders  (Sales → Sales Orders)
 - New order: customer, ship-from location, requested date, lines (wholesale accounts get a 15% line discount).
 - Statuses: **Placed** (demand is reserved; MRP and available-to-promise see it) → **Fulfilled** (shipped/picked up: inventory, revenue and COGS post; A/R is created) → **Closed** (payment received: Cash ↑, A/R ↓) or **Cancelled** (only before fulfillment).
-- Short lines show "Backordered — est. available DATE".
+- Short lines show "Backordered — est. available DATE". **Ship available, backorder rest** ships what's in stock now and automatically creates a linked backorder (new sales order) for the remainder — the two orders add up to the original total.
 
 ### 5. Returns & exchanges  (Sales → Returns)
 - Find the sale by number or **scan the receipt barcode** → choose qty, **reason code**, **disposition**.
@@ -112,7 +112,8 @@ Sales by day/week/month with gross profit, top sellers, low stock with suggested
 4. **EOQ cost curve + demand forecast** per item (Holt exponential smoothing) — makes the math visible to a business owner.
 5. **Supplier Keep / Watch / Replace** scoring computed from actual delivery history.
 6. **Barcode everywhere** incl. scan-to-receive with per-line counting and receipt-barcode returns.
-7. **Realistic simulated history** (seasonality, closed Sundays, holidays, supplier personalities) — why ROP/EOQ values are believable.
+7. **8-week cash-flow forecast** (Financials → Cash-flow forecast, and "Cash on hand" on the Action Center): projects the bank balance from store sales, invoices customers owe, confirmed orders, supplier bills due, open POs, payroll, rent and sales tax. Say: "MRP tells us what to buy; this tells us whether we can afford it." Live test: send a big PO → the projected balance drops.
+8. **Realistic simulated history** (seasonality, closed Sundays, holidays, supplier personalities) — why ROP/EOQ values are believable.
 
 ## "Change an input and re-show it" — rehearse these
 | Change | Where | What moves |
@@ -137,4 +138,4 @@ Sales by day/week/month with gross profit, top sellers, low stock with suggested
 - **How was data generated?** A day-by-day simulation that calls the same functions the app uses, so the history is internally consistent (not random rows).
 
 ## Honest limitations (if asked)
-Single currency/tax rate; costs are company-wide weighted average (not per location); MRP uses weekly buckets and lot-for-lot; no partial fulfillment of a single sales order (fulfil when all lines are available, or cancel and re-enter it); placed orders can't be edited.
+Single currency/tax rate; costs are company-wide weighted average (not per location); MRP uses weekly buckets and lot-for-lot; placed orders can't be edited (cancel and re-enter, or ship available and backorder the rest).

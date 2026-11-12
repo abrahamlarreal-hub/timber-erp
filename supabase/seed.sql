@@ -302,6 +302,9 @@ begin
       end if;
     end if;
   end loop;
+  -- opening cash in the bank (owner's investment)
+  perform public.gl_post('Cash', 25000, 0, 'Opening cash balance', 'opening', null);
+  perform public.gl_post('Owner''s Equity', 0, 25000, 'Opening cash balance', 'opening', null);
   -- components at the workshop: ~ (lead time + 14) days of usage
   for it in
     select ci2.*, sum(b.qty_per * pg_temp.rate(b.parent_item_id, v_start, v_start)
@@ -325,6 +328,16 @@ begin
       perform public.record_expense('Rent', 3600, 'Store + workshop rent ' || to_char(d, 'Mon YYYY'));
       perform public.record_expense('Utilities', round((520 + random() * 220)::numeric, 2), 'Utilities ' || to_char(d, 'Mon YYYY'));
       perform public.record_expense('Marketing', round((300 + random() * 600 + case when extract(month from d) in (11,12,5) then 700 else 0 end)::numeric, 2), 'Ads & social ' || to_char(d, 'Mon YYYY'));
+    end if;
+    -- remit last month's sales tax to the Utah State Tax Commission on the 20th
+    if extract(day from d) = 20 then
+      perform pg_temp.clock(d, 10, 'Morgan Reyes');
+      select coalesce(sum(credit - debit), 0) into v_q from public.gl_entries
+       where account = 'Sales Tax Payable' and ts < public.day_start(date_trunc('month', d)::date);
+      if v_q > 0 then
+        perform public.gl_post('Sales Tax Payable', v_q, 0, 'Sales tax remittance ' || to_char(d - 30, 'Mon YYYY'), 'tax', null);
+        perform public.gl_post('Cash', 0, v_q, 'Sales tax remittance ' || to_char(d - 30, 'Mon YYYY'), 'tax', null);
+      end if;
     end if;
     if dow = 5 and ((d - v_start) / 7) % 2 = 0 then
       perform pg_temp.clock(d, 17, 'Morgan Reyes');

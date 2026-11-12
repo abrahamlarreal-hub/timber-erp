@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, PackageCheck, CheckCircle2, XCircle, Receipt as ReceiptIcon, Undo2 } from 'lucide-react'
+import { ArrowLeft, PackageCheck, CheckCircle2, XCircle, Receipt as ReceiptIcon, Undo2, Split } from 'lucide-react'
 import { useState } from 'react'
 import { supabase, sel, rpc } from '../lib/supabase'
 import { useInventory, useAction } from '../lib/hooks'
@@ -22,6 +22,8 @@ export default function SalesOrderDetail() {
     queryFn: async () => Object.fromEntries(await Promise.all(shortLines.map(async (l) => [l.id, await rpc('est_available_date', { p_item: l.item_id, p_qty: Number(l.qty) })]))),
   })
   const fulfill = useAction(() => rpc('fulfill_sales_order', { p_id: o.id }), { success: 'Fulfilled — inventory relieved, revenue & COGS recorded' })
+  const shipPartial = useAction(() => rpc('ship_available', { p_id: o.id }), { success: (r) => `Shipped what was in stock — remainder backordered on ${r.backorder_number}`, onSuccess: () => {} })
+  const related = useQuery({ enabled: !!o, queryKey: ['related', id, o?.backorder_of], queryFn: () => sel(supabase.from('sales_orders').select('id, number, status').or(`backorder_of.eq.${id}${o?.backorder_of ? `,id.eq.${o.backorder_of}` : ''}`)) })
   const close = useAction(() => rpc('close_sales_order', { p_id: o.id }), { success: 'Order closed — payment recorded' })
   const cancel = useAction(() => rpc('cancel_sales_order', { p_id: o.id, p_reason: 'Cancelled by staff' }), { success: 'Order cancelled' })
   if (isLoading || !o) return <Spinner />
@@ -32,7 +34,8 @@ export default function SalesOrderDetail() {
       <PageHeader title={<span className="flex items-center gap-3">{o.number} <StatusBadge status={o.status} /></span>}
         subtitle={`${o.customer?.name || 'Walk-in customer'} · ${o.location?.name} · ${o.source === 'WEB' ? 'Customer portal pickup order' : o.source}`}
         actions={<>
-          {o.status === 'Placed' && <Button variant="success" loading={fulfill.isPending} onClick={() => fulfill.mutate()}><PackageCheck className="h-4 w-4" />Fulfill (ship / pick up)</Button>}
+          {o.status === 'Placed' && shortLines.length === 0 && <Button variant="success" loading={fulfill.isPending} onClick={() => fulfill.mutate()}><PackageCheck className="h-4 w-4" />Fulfill (ship / pick up)</Button>}
+          {o.status === 'Placed' && shortLines.length > 0 && <Button variant="success" loading={shipPartial.isPending} onClick={() => shipPartial.mutate()}><Split className="h-4 w-4" />Ship available, backorder rest</Button>}
           {o.status === 'Fulfilled' && <Button variant="success" loading={close.isPending} onClick={() => close.mutate()}><CheckCircle2 className="h-4 w-4" />Record payment & close</Button>}
           {o.status === 'Placed' && <Button variant="secondary" loading={cancel.isPending} onClick={() => confirm('Cancel this order?') && cancel.mutate()}><XCircle className="h-4 w-4" />Cancel</Button>}
           {['Fulfilled', 'Closed'].includes(o.status) && <Button variant="secondary" onClick={() => nav(`/returns?order=${o.id}`)}><Undo2 className="h-4 w-4" />Return / exchange</Button>}
@@ -68,6 +71,8 @@ export default function SalesOrderDetail() {
               <div className="flex justify-between"><dt className="text-stone-500">Gross margin</dt><dd>{pct(margin)}</dd></div></>}
           </dl>
           {o.notes && <p className="mt-3 rounded-lg bg-stone-50 p-2 text-xs text-stone-600">{o.notes}</p>}
+          {related.data?.length > 0 && <div className="mt-3 text-xs"><div className="label">Linked orders</div>{related.data.map((r) => (
+            <button key={r.id} onClick={() => nav(`/sales/${r.id}`)} className="mr-2 text-brand-700 hover:underline">{r.number} ({r.id === o.backorder_of ? 'original' : 'backorder'}, {r.status})</button>))}</div>}
         </Card>
       </div>
       {returns.data?.length > 0 && (

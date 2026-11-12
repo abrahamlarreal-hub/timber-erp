@@ -16,6 +16,7 @@ const SEV = {
 export default function Dashboard() {
   const nav = useNavigate()
   const { data, isLoading } = useRpcQuery('dashboard')
+  const cash = useRpcQuery('cash_forecast', { p_weeks: 8 }).data
   const feed = useQuery({
     queryKey: ['activity'],
     queryFn: () => sel(supabase.from('activity_log').select('*').order('ts', { ascending: false }).limit(14)),
@@ -30,9 +31,10 @@ export default function Dashboard() {
     <>
       <PageHeader icon={LayoutDashboard} title="Action Center"
         subtitle={`Good ${new Date().getHours() < 12 ? 'morning' : 'afternoon'} — here is what needs attention today, prioritized from live data across every module.`} />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         <Stat label="Sales today" value={money0(k.today_sales)} sub={`${k.today_orders} orders`} icon={DollarSign} onClick={() => nav('/reports')} />
         <Stat label="Net sales MTD" value={money0(k.mtd_net_sales)} sub={`Gross margin ${pct(gm)}`} icon={DollarSign} onClick={() => nav('/financials')} />
+        <Stat label="Cash on hand" value={money0(cash?.opening_cash)} sub={cash ? `Lowest next 8 wks ${money0(cash.lowest_balance)}` : '…'} tone={cash && cash.lowest_balance < 10000 ? 'bad' : undefined} icon={DollarSign} onClick={() => nav('/financials')} />
         <Stat label="Inventory value" value={money0(k.inventory_value)} sub="Weighted avg cost" icon={Boxes} onClick={() => nav('/financials')} />
         <Stat label="Open sales orders" value={k.open_sales_orders} sub={money0(k.open_sales_value)} icon={ClipboardList} onClick={() => nav('/sales')} />
         <Stat label="Below reorder point" value={k.below_rop} tone={k.below_rop ? 'warn' : 'good'} sub={`${k.backordered_items} item(s) backordered`} icon={ShieldAlert} onClick={() => nav('/replenishment')} />

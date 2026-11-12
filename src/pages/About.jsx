@@ -28,6 +28,7 @@ export default function About() {
             <li><b>Purchasing</b> receipts raise inventory, update weighted-average cost, and create payables due per supplier terms; the <b>supplier scorecard</b> is computed from that PO history.</li>
             <li><b>Production</b> issues components (Inventory → WIP), then receives good units at rolled-up cost and expenses scrap.</li>
             <li><b>Financials</b> (P&amp;L, valuation, turnover) are computed on demand from the ledger — nothing is typed in.</li>
+            <li><b>Cash-flow forecast</b> ties it together: open invoices (sales), supplier bills and open POs (purchasing), payroll and rent (finance) project the bank balance 8 weeks out.</li>
           </ol>
         </Card>
         <Card title="How we verified it">

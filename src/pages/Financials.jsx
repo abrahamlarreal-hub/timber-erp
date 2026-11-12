@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell, ComposedChart, Line, ReferenceLine } from 'recharts'
 import { Landmark, Plus } from 'lucide-react'
 import { supabase, sel, rpc } from '../lib/supabase'
 import { useRpcQuery, useAction } from '../lib/hooks'
-import { money, money0, pct, num, isoDate, addDays, fmtDateTime, qty } from '../lib/format'
+import { money, money0, pct, num, isoDate, addDays, fmtDateTime, qty, fmtShort } from '../lib/format'
 import { Card, PageHeader, Tabs, DateRange, Stat, Table, Spinner, Explain, Button, Modal, Field, Select, Input, cx } from '../components/ui.jsx'
 
 const COLORS = ['#7a5632', '#2f7a55', '#c2a47a', '#0ea5e9', '#a855f7', '#f59e0b', '#64748b']
@@ -15,11 +15,12 @@ export default function Financials() {
   return (
     <>
       <PageHeader icon={Landmark} title="Financial Reporting" subtitle="Profit & loss, inventory valuation and turnover — computed live from the general ledger and inventory transactions" />
-      <Tabs value={tab} onChange={setTab} tabs={[{ value: 'pnl', label: 'Profit & Loss' }, { value: 'valuation', label: 'Inventory valuation' }, { value: 'turnover', label: 'Inventory turnover' }, { value: 'gl', label: 'General ledger' }]} />
-      {tab !== 'valuation' && <Card className="mb-5"><DateRange from={r.from} to={r.to} onChange={(from, to) => setR({ from, to })} /></Card>}
+      <Tabs value={tab} onChange={setTab} tabs={[{ value: 'pnl', label: 'Profit & Loss' }, { value: 'valuation', label: 'Inventory valuation' }, { value: 'turnover', label: 'Inventory turnover' }, { value: 'cash', label: 'Cash-flow forecast' }, { value: 'gl', label: 'General ledger' }]} />
+      {!['valuation', 'cash'].includes(tab) && <Card className="mb-5"><DateRange from={r.from} to={r.to} onChange={(from, to) => setR({ from, to })} /></Card>}
       {tab === 'pnl' && <PnL r={r} />}
       {tab === 'valuation' && <Valuation />}
       {tab === 'turnover' && <Turnover r={r} />}
+      {tab === 'cash' && <CashForecast />}
       {tab === 'gl' && <Ledger r={r} />}
     </>
   )
@@ -161,6 +162,54 @@ function Ledger({ r }) {
           { label: 'Credit', num: true, render: (g) => (Number(g.credit) ? money(g.credit) : '') }, { label: 'Memo', key: 'memo' },
         ]} />
       </Card>
+    </div>
+  )
+}
+
+export function CashForecast() {
+  const { data: f } = useRpcQuery('cash_forecast', { p_weeks: 8 })
+  if (!f) return <Spinner />
+  const rows = f.weeks.map((w) => ({ ...w, ending: Number(w.ending), inflow: Number(w.in_sales) + Number(w.in_receivables) + Number(w.in_orders),
+    outflow: -(Number(w.out_payables) + Number(w.out_open_pos) + Number(w.out_payroll) + Number(w.out_rent) + Number(w.out_overhead) + Number(w.out_sales_tax)) }))
+  const low = Number(f.lowest_balance)
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat label="Cash today" value={money0(f.opening_cash)} sub="general ledger Cash balance" />
+        <Stat label="Lowest projected (8 wks)" value={money0(low)} tone={low < 10000 ? 'bad' : 'good'} sub={f.lowest_week ? `in week ${f.lowest_week}` : 'today'} />
+        <Stat label="Customers owe us (A/R)" value={money0(f.receivables_open)} />
+        <Stat label="We owe suppliers (A/P)" value={money0(f.payables_open)} />
+      </div>
+      <Card title="Projected cash by week" subtitle="Bars = money in / out each week · line = projected bank balance">
+        <div className="h-80"><ResponsiveContainer><ComposedChart data={rows}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#eee" /><XAxis dataKey="start" tickFormatter={(d) => 'Wk of ' + fmtShort(d)} tick={{ fontSize: 11 }} />
+          <YAxis tickFormatter={(v) => '$' + Math.round(v / 1000) + 'k'} tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => money(v)} labelFormatter={(d) => 'Week of ' + fmtShort(d)} /><Legend />
+          <ReferenceLine y={0} stroke="#999" />
+          <Bar dataKey="inflow" name="Cash in" fill="#2f7a55" /><Bar dataKey="outflow" name="Cash out" fill="#c2a47a" />
+          <Line type="monotone" dataKey="ending" name="Projected balance" stroke="#5f422a" strokeWidth={2.5} isAnimationActive={false} />
+        </ComposedChart></ResponsiveContainer></div>
+      </Card>
+      <Card title="Weekly detail" padded={false}>
+        <Table rows={f.weeks} rowKey="week" dense columns={[
+          { label: 'Week of', render: (w) => fmtShort(w.start) },
+          { label: '+ Store/portal sales', num: true, render: (w) => money0(w.in_sales) },
+          { label: '+ Invoices collected', num: true, render: (w) => money0(w.in_receivables) },
+          { label: '+ Confirmed orders', num: true, render: (w) => money0(w.in_orders) },
+          { label: '− Supplier bills', num: true, render: (w) => money0(w.out_payables) },
+          { label: '− Open POs', num: true, render: (w) => money0(w.out_open_pos) },
+          { label: '− Payroll', num: true, render: (w) => money0(w.out_payroll) },
+          { label: '− Rent', num: true, render: (w) => money0(w.out_rent) },
+          { label: '− Sales tax', num: true, render: (w) => money0(w.out_sales_tax) },
+          { label: '− Overhead', num: true, render: (w) => money0(w.out_overhead) },
+          { label: 'Net', num: true, render: (w) => <span className={w.net < 0 ? 'text-red-600' : 'text-emerald-700'}>{money0(w.net)}</span> },
+          { label: 'Ending cash', num: true, render: (w) => <b>{money0(w.ending)}</b> },
+        ]} />
+      </Card>
+      <Explain title="How the forecast is built (all from data already in the system)">
+        <p><b>Cash in:</b> store + portal sales at the average of the last 8 weeks; open wholesale invoices collected 30 days after shipment; confirmed (Placed) wholesale orders collected 30 days after their requested date.</p>
+        <p><b>Cash out:</b> supplier bills on their due dates (receipt date + payment terms); open purchase orders paid at expected receipt + terms; payroll and overhead at their 12-week average; rent on the 1st; sales tax collected is remitted on the 20th.</p>
+        <p>Why it matters: purchasing, MRP and sales decisions all hit the bank account. Placing a big PO or landing a wholesale order changes this chart immediately.</p>
+      </Explain>
     </div>
   )
 }
