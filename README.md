@@ -69,5 +69,5 @@ DEMO_GUIDE.md          how to present it + ERP/MRP talking points
 ```
 
 To rebuild `setup/01_full_setup.sql` after editing SQL: `./scripts/build-setup-sql.sh`.
-Local full stack (optional, needs Docker): `npx supabase start`, then
+Local full stack (optional, needs Docker): `npx supabase@latest start`, then
 `psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/seed.sql`.

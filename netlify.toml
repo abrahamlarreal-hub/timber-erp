@@ -1,0 +1,15 @@
+# Netlify builds the site from GitHub automatically on every push.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Public (browser-safe) Supabase settings for this project.
+  VITE_SUPABASE_URL = "https://sfdzalibeqhfxvkqoosc.supabase.co"
+  VITE_SUPABASE_ANON_KEY = "sb_publishable_2Vbf4g02BPINcm00TI2NFA_XDGd5eIp"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
