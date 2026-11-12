@@ -5,3 +5,7 @@ supabase/.temp
 supabase/.branches
 timber-erp.zip
 .env.production.local
+timber-erp-website/
+timber-erp-website.zip
+timber-erp-github.zip
+*.zip
