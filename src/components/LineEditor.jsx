@@ -19,7 +19,7 @@ export default function LineEditor({ items, lines, setLines, priceField = 'unit_
       <div className="grid gap-2 sm:grid-cols-2">
         <Select placeholder="+ Add item…" value="" onChange={(e) => e.target.value && add(byId[e.target.value])}
           options={choices.map((i) => ({ value: i.id, label: `${i.sku} — ${i.name}` }))} />
-        <ScanInput items={choices} onItem={add} placeholder="…or scan barcode" />
+        <ScanInput items={choices} onItem={add} continuous placeholder="…or scan barcode" />
       </div>
       <div className="overflow-x-auto rounded-lg border border-stone-200">
         <table className="min-w-full text-sm">

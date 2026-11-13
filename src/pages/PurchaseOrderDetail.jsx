@@ -58,7 +58,7 @@ export default function PurchaseOrderDetail() {
       </div>
       <Card title="Lines" padded={false} actions={canReceive && <div className="flex flex-wrap items-center gap-2 no-print">
         <Select className="w-48 py-1.5" value={loc || p.location_id} onChange={(e) => setLoc(e.target.value)} options={locs.filter((l) => l.kind !== 'quarantine').map((l) => ({ value: l.id, label: `Receive into ${l.code}` }))} />
-        <ScanInput className="w-80" items={items} onItem={scan} placeholder="Scan item labels to count…" />
+        <ScanInput className="w-80" items={items} onItem={scan} continuous captureGlobal placeholder="Scan item labels to count…" />
         <Button size="sm" variant="secondary" onClick={() => setRecv(Object.fromEntries(p.lines.map((l) => [l.id, l.qty_ordered - l.qty_received])))}>Receive all</Button>
         <Button variant="success" loading={receive.isPending} disabled={!Object.values(recv).some((q) => Number(q) > 0)} onClick={() => receive.mutate()}><PackagePlus className="h-4 w-4" />Post receipt</Button>
       </div>}>

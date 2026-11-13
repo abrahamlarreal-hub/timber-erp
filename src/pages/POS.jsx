@@ -51,7 +51,7 @@ export default function POS() {
         actions={<Select value={loc || retail?.id || ''} onChange={(e) => setLoc(e.target.value)} options={locs.filter((l) => l.kind !== 'quarantine').map((l) => ({ value: l.id, label: l.name }))} className="w-60" />} />
       <div className="grid gap-5 lg:grid-cols-5">
         <div className="space-y-3 lg:col-span-3">
-          <ScanInput items={sellable} onItem={add} autoFocus placeholder="Scan barcode (USB scanner or camera) or type SKU + Enter" />
+          <ScanInput items={sellable} onItem={add} autoFocus continuous captureGlobal placeholder="Scan barcode (USB scanner or camera) or type SKU + Enter" />
           <Input placeholder="Search products…" value={q} onChange={(e) => setQ(e.target.value)} />
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {shown.map((it) => {
