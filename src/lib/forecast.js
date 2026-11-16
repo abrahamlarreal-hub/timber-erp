@@ -13,6 +13,18 @@ export const MODELS = {
     label: 'Exponential smoothing', short: 'Exp. smoothing',
     fit: (y, p) => { let l = y[0] ?? 0; for (let t = 1; t < y.length; t++) l = p.alpha * y[t] + (1 - p.alpha) * l; return { next: () => l } },
   },
+  seasonal: {
+    label: 'Seasonal (wedding & holiday calendar)', short: 'Seasonal',
+    // remove the seasonal calendar from history, smooth the underlying level, then put the calendar back on future weeks
+    fit: (y, p) => {
+      const idx = (iso) => { if (!iso || !p.season) return 1; const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + 3); return Number(p.season[d.getMonth()]) || 1 }
+      const wk = p.weekStarts || []
+      const ds = y.map((v, t) => v / idx(wk[t]))
+      let l = mean(ds.slice(0, 4)); for (let t = 4; t < ds.length; t++) l = p.alpha * ds[t] + (1 - p.alpha) * l
+      const last = wk[y.length - 1]
+      return { next: (h) => { if (!last) return l; const d = new Date(last + 'T12:00:00'); d.setDate(d.getDate() + 7 * h); return l * idx(d.toISOString().slice(0, 10)) } }
+    },
+  },
   holt: {
     label: 'Trend (Holt)', short: 'Trend',
     fit: (y, p) => {

@@ -1,23 +1,27 @@
 import { useMemo, useState } from 'react'
 import { ComposedChart, Bar, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
-import { useItems, usePolicy, useRpcQuery } from '../lib/hooks'
+import { useItems, usePolicy, useRpcQuery, useSettings, useAction } from '../lib/hooks'
+import { useAuth } from '../lib/auth.jsx'
+import { supabase } from '../lib/supabase'
 import { MODELS, forecastItem } from '../lib/forecast'
 import { productImage } from '../lib/productArt'
 import { money0, num, fmtShort, fmtDate, addDays } from '../lib/format'
-import { Card, PageHeader, Table, Badge, Select, Stat, Spinner, Explain, Field, cx } from '../components/ui.jsx'
+import { Card, PageHeader, Table, Badge, Select, Stat, Spinner, Explain, Field, Input, Button, cx } from '../components/ui.jsx'
 
 export default function Forecast() {
   const items = useItems().data || []
   const policy = usePolicy().data || []
   const { data: hist, isLoading } = useRpcQuery('weekly_usage', { p_weeks: 26 })
-  const [method, setMethod] = useState('auto')
+  const [method, setMethod] = useState('seasonal')
   const [horizon, setHorizon] = useState(8)
   const [series, setSeries] = useState('sold')
   const [group, setGroup] = useState('sellable')
   const [cat, setCat] = useState('')
   const [p, setP] = useState({ n: 4, alpha: 0.3, beta: 0.1 })
   const [sel, setSel] = useState(null)
+  const settings = useSettings().data
+  const season = useMemo(() => Array.from({ length: 12 }, (_, i) => Number(settings?.map[`season_m${String(i + 1).padStart(2, '0')}`] || 1)), [settings])
 
   const rows = useMemo(() => {
     if (!hist?.items) return []
@@ -26,7 +30,7 @@ export default function Forecast() {
       const it = items.find((i) => i.id === h.item_id)
       if (!it) return null
       const y = (series === 'sold' ? h.sold : h.used).map(Number)
-      const f = forecastItem(y, { method, horizon, params: p })
+      const f = forecastItem(y, { method, horizon, params: { ...p, season, weekStarts: hist.weeks } })
       const pl = pol[it.id] || {}
       const onHand = Number(pl.on_hand || 0)
       const daily = f.weekly / 7
@@ -37,7 +41,7 @@ export default function Forecast() {
         stockout: coverDays != null ? addDays(hist.today, Math.floor(coverDays)) : null,
         revenue: Number(it.price) > 0 && it.sellable ? f.total * Number(it.price) : 0 }
     }).filter(Boolean)
-  }, [hist, items, policy, method, horizon, series, p])
+  }, [hist, items, policy, method, horizon, series, p, season])
 
   const shown = rows.filter((r) => (group === 'all' || (group === 'sellable' ? r.sellable && Number(r.price) > 0 : r.item_type === 'component'))
     && (!cat || r.category === cat)).sort((a, b) => b.f.total - a.f.total)
@@ -112,10 +116,12 @@ export default function Forecast() {
         </Card>
       </div>
 
+      <SeasonCalendar season={season} />
       <div className="mt-5"><Explain title="How the forecast works">
         <p><b>Data:</b> weekly units for the last 26 weeks, rebuilt from the inventory transaction ledger (sales and returns, optionally plus production consumption).</p>
         <p><b>Methods:</b> <i>Moving average</i> = average of the last n weeks. <i>Exponential smoothing</i> = level updated each week by α × (actual − level), so recent weeks count more. <i>Trend (Holt)</i> = also smooths a trend (β), so growing items like holiday gift sets are projected upward.</p>
-        <p><b>Accuracy:</b> each method is back-tested on the last 8 weeks (forecast each week using only the weeks before it). MAD = average absolute error; MAPE = average % error; accuracy = 100% − MAPE. <i>Auto</i> picks the method with the lowest error for each item.</p>
+        <p><b>Accuracy:</b> each method is back-tested on the last 8 weeks (forecast each week using only the weeks before it). MAD = average absolute error; MAPE = average % error; accuracy = 100% − MAPE. <i>Auto</i> picks the method with the lowest recent error for each item. The page opens on <b>Seasonal</b> because a short back-test can't see that November–January and June–August are coming; the seasonal calendar can.</p>
+        <p><b>Seasonal:</b> divides each past week by its month's index from the seasonal calendar (weddings Jun–Aug, holidays Oct–Jan), smooths what's left, and multiplies future weeks by their month's index — so it predicts the December spike even though last December isn't in the data yet.</p>
         <p><b>Risk:</b> days of cover = on hand ÷ forecast daily demand. If that's shorter than the item's lead time, the item will run out before a new order can arrive → <i>Order now</i>. The shaded band on the chart is an 80% range (±1.28 × back-test RMSE).</p>
       </Explain></div>
     </>
@@ -146,5 +152,35 @@ function ItemChart({ r, weeks, horizon }) {
         </ComposedChart>
       </ResponsiveContainer>
     </div>
+  )
+}
+
+function SeasonCalendar({ season }) {
+  const { isManager } = useAuth()
+  const [vals, setVals] = useState(null)
+  const v = vals || season
+  const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const save = useAction(async () => {
+    for (let i = 0; i < 12; i++) {
+      const { error } = await supabase.from('settings').update({ value: Number(v[i]) }).eq('key', `season_m${String(i + 1).padStart(2, '0')}`)
+      if (error) throw new Error(error.message)
+    }
+  }, { success: 'Seasonal calendar saved — forecasts updated', onSuccess: () => setVals(null) })
+  const max = Math.max(...v.map(Number), 1)
+  return (
+    <Card className="mt-5" title="Seasonal calendar" subtitle="How busy each month is compared with normal (1.00). Used by the Seasonal method here and in the production build plan."
+      actions={isManager && vals && <Button size="sm" loading={save.isPending} onClick={() => save.mutate()}>Save calendar</Button>}>
+      <div className="grid grid-cols-6 gap-2 md:grid-cols-12">
+        {M.map((m, i) => (
+          <div key={m} className="text-center">
+            <div className="mx-auto flex h-20 w-8 items-end rounded bg-stone-100"><div className={cx('w-full rounded', [5, 6, 7].includes(i) ? 'bg-rose-300' : [9, 10, 11, 0].includes(i) ? 'bg-emerald-400' : 'bg-brand-300')} style={{ height: `${(Number(v[i]) / max) * 100}%` }} /></div>
+            <div className="mt-1 text-xs font-medium">{m}</div>
+            <input type="number" step="0.05" min="0" disabled={!isManager} value={v[i]} onChange={(e) => { const n = [...v]; n[i] = e.target.value; setVals(n) }}
+              className="mt-1 w-full rounded border border-stone-300 px-1 py-0.5 text-center text-xs disabled:bg-stone-50" />
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-stone-500"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-rose-300" />Wedding season (Jun–Aug) <span className="ml-3 mr-2 inline-block h-2 w-2 rounded-full bg-emerald-400" />Holiday spending (Oct–Jan)</p>
+    </Card>
   )
 }

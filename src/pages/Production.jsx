@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
 import { Factory, Plus, Play, CheckCircle2, XCircle } from 'lucide-react'
 import { supabase, sel, rpc } from '../lib/supabase'
-import { useItems, useLocations, useInventory, useReasons, useAction, useRpcQuery, usePolicy } from '../lib/hooks'
+import { useItems, useLocations, useInventory, useReasons, useAction, useRpcQuery, usePolicy, useSettings } from '../lib/hooks'
 import { forecastItem, MODELS } from '../lib/forecast'
 import { productImage } from '../lib/productArt'
 import { money, qty, fmtDate, fmtDateTime, fmtShort, pct, isoDate, addDays, num } from '../lib/format'
@@ -16,10 +16,17 @@ export default function Production() {
   const [start, setStart] = useState(null)
   const { data: orders = [] } = useQuery({
     queryKey: ['production_orders'],
-    queryFn: () => sel(supabase.from('production_orders').select('*, item:items(name, sku, uom), location:locations(code)').order('created_at', { ascending: false }).limit(200)),
+    queryFn: () => sel(supabase.from('production_orders').select('*, item:items(name, sku, uom, category, item_type), location:locations(code)').order('created_at', { ascending: false }).limit(200)),
   })
   const cancel = useAction((id) => rpc('cancel_production_order', { p_id: id }), { success: 'Production order cancelled (components returned if issued)' })
-  const open = orders.filter((o) => ['Planned', 'In Progress'].includes(o.status))
+  const [group, setGroup] = useState('')
+  const [groupBy, setGroupBy] = useState(true)
+  const groups = [...new Set(orders.map((o) => o.item.category))].sort()
+  const inGroup = (o) => !group || o.item.category === group
+  const open = orders.filter((o) => ['Planned', 'In Progress'].includes(o.status) && inGroup(o))
+  const listed = (tab === 'orders' ? open : orders.filter(inGroup))
+  // when grouping, keep orders of the same product type together (stable order inside each group)
+  const rows = groupBy ? [...listed].sort((a, b) => a.item.category.localeCompare(b.item.category) || a.item.name.localeCompare(b.item.name)) : listed
   return (
     <>
       <PageHeader icon={Factory} title="Production Orders" subtitle="Build finished goods and kits. Starting an order issues components per the BOM; completing it receives good units at rolled-up cost."
@@ -27,19 +34,25 @@ export default function Production() {
       <Tabs value={tab} onChange={setTab} tabs={[{ value: 'orders', label: `Open orders (${open.length})` }, { value: 'history', label: 'All orders' }, { value: 'forecast', label: 'Forecast & build plan' }, { value: 'report', label: 'Production & quality report' }]} />
       {tab === 'forecast' ? <ProductionForecast /> : tab === 'report' ? <ProductionReport /> : (
         <Card padded={false}>
-          <Table rows={tab === 'orders' ? open : orders} columns={[
-            { label: 'Order', render: (o) => <span className="font-medium">{o.number}</span> },
-            { label: 'Item', render: (o) => <div><div>{o.item.name}</div><div className="text-xs text-stone-500">{o.item.sku}</div></div> },
-            { label: 'Loc', render: (o) => o.location.code },
-            { label: 'Status', render: (o) => <StatusBadge status={o.status} /> },
-            { label: 'Planned', num: true, render: (o) => qty(o.qty_planned) },
+          <div className="flex flex-wrap items-end gap-3 border-b border-stone-100 p-3">
+            <Field label="Product type"><Select className="w-52" value={group} onChange={(e) => setGroup(e.target.value)} placeholder="All product types" options={groups.map((g) => ({ value: g, label: `${g} (${orders.filter((o) => o.item.category === g && (tab !== 'orders' || ['Planned', 'In Progress'].includes(o.status))).length})` }))} /></Field>
+            <label className="flex items-center gap-2 pb-2 text-sm text-stone-600"><input type="checkbox" checked={groupBy} onChange={(e) => setGroupBy(e.target.checked)} />Group by product type</label>
+            <span className="pb-2 text-xs text-stone-400">Tip: click any column header to sort</span>
+          </div>
+          <Table key={tab + groupBy} rows={rows} maxHeight="65vh" columns={[
+            { label: 'Order', sort: (o) => o.number, render: (o) => <span className="font-medium">{o.number}</span> },
+            { label: 'Product type', sort: (o) => o.item.category, render: (o) => <Badge color="gray">{o.item.category}</Badge> },
+            { label: 'Item', sort: (o) => o.item.name, render: (o) => <div><div>{o.item.name}</div><div className="text-xs text-stone-500">{o.item.sku}</div></div> },
+            { label: 'Loc', sort: (o) => o.location.code, render: (o) => o.location.code },
+            { label: 'Status', sort: (o) => o.status, render: (o) => <StatusBadge status={o.status} /> },
+            { label: 'Planned', num: true, sort: (o) => Number(o.qty_planned), render: (o) => qty(o.qty_planned) },
             { label: 'Started', num: true, render: (o) => (Number(o.qty_started) ? qty(o.qty_started) : '') },
             { label: 'Good', num: true, render: (o) => (o.status === 'Completed' ? qty(o.qty_good) : '') },
             { label: 'Scrap / rework', num: true, render: (o) => (o.status === 'Completed' ? <span>{qty(o.qty_scrapped)} / {qty(o.qty_reworked)}{o.quality_reason && <Badge className="ml-1" color="amber">{o.quality_reason}</Badge>}</span> : '') },
-            { label: 'Due', render: (o) => fmtDate(o.due_date) },
-            { label: 'Started at', render: (o) => fmtDateTime(o.started_at) },
-            { label: 'Finished at', render: (o) => fmtDateTime(o.finished_at) },
-            { label: 'Unit cost', num: true, render: (o) => (o.unit_cost ? money(o.unit_cost) : '') },
+            { label: 'Due', sort: (o) => o.due_date, render: (o) => fmtDate(o.due_date) },
+            { label: 'Started at', sort: (o) => o.started_at, render: (o) => fmtDateTime(o.started_at) },
+            { label: 'Finished at', sort: (o) => o.finished_at, render: (o) => fmtDateTime(o.finished_at) },
+            { label: 'Unit cost', num: true, sort: (o) => (o.unit_cost ? Number(o.unit_cost) : null), render: (o) => (o.unit_cost ? money(o.unit_cost) : '') },
             { label: '', render: (o) => (
               <div className="flex gap-1">
                 {o.status === 'Planned' && <Button size="sm" variant="success" onClick={() => setStart(o)}><Play className="h-3.5 w-3.5" />Start</Button>}
@@ -211,13 +224,15 @@ function ProductionForecast() {
   const [buffer, setBuffer] = useState(1)
   const [picked, setPicked] = useState({})
   const made = items.filter((i) => boms.some((b) => b.parent_item_id === i.id))
+  const settings = useSettings().data
+  const season = Array.from({ length: 12 }, (_, i) => Number(settings?.map[`season_m${String(i + 1).padStart(2, '0')}`] || 1))
 
   const rows = useMemo(() => {
     if (!hist?.items) return []
     return made.map((it) => {
       const h = hist.items.find((x) => x.item_id === it.id)
       const y = (h?.used || []).map(Number) // sales + use inside kits (e.g. boards in gift sets)
-      const f = forecastItem(y, { method: 'auto', horizon, params: { n: 4, alpha: 0.3, beta: 0.1 } })
+      const f = forecastItem(y, { method: 'seasonal', horizon, params: { n: 4, alpha: 0.3, beta: 0.1, season, weekStarts: hist.weeks } })
       const p = policy.find((x) => x.item_id === it.id) || {}
       const onHand = Number(p.on_hand || 0), inProd = Number(p.on_order || 0), orders = Number(p.allocated || 0)
       const demand = Math.max(f.total, orders)            // forecast, but never less than confirmed orders
@@ -228,7 +243,7 @@ function ProductionForecast() {
       return { ...it, f, onHand, inProd, orders, demand, safety, need, build,
         cover: f.weekly > 0 ? (onHand + inProd) / f.weekly : null }
     }).sort((a, b) => b.build - a.build || a.cover - b.cover)
-  }, [hist, made.length, policy, horizon, buffer]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hist, made.length, policy, horizon, buffer, settings]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const buildKey = rows.map((r) => `${r.id}:${r.build}`).join(',')
   useEffect(() => { setPicked(Object.fromEntries(rows.filter((r) => r.build > 0).map((r) => [r.id, true]))) }, [buildKey])
@@ -270,7 +285,7 @@ function ProductionForecast() {
         ]} />
       </Card>
       <Explain title="How the build plan works">
-        <p><b>Forecast:</b> weekly usage of each made item over 26 weeks (customer sales plus use inside kits — e.g. maple boards that go into gift sets) is forecast with the most accurate of moving average, exponential smoothing and trend, as on the Demand Forecast page.</p>
+        <p><b>Forecast:</b> weekly usage of each made item over 26 weeks (customer sales plus use inside kits — e.g. maple boards that go into gift sets) is forecast with the <b>seasonal</b> method, using the wedding & holiday calendar from the Demand Forecast page, so builds ramp up ahead of December.</p>
         <p><b>Netting:</b> demand for the horizon (or confirmed orders, whichever is larger) + a safety buffer of N weeks − on hand − units already planned or in progress = units to build, rounded up to a batch (5, or 10 for board butter).</p>
         <p><b>Capacity check:</b> compares the suggested builds with the workshop's typical good output per week over the last 8 weeks. This is make-to-stock planning from the forecast; MRP covers confirmed customer orders and the components they need.</p>
       </Explain>

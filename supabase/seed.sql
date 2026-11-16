@@ -71,33 +71,33 @@ create temp table seed_items (n int, sku text, name text, descr text, category t
   cost numeric, price numeric, lt int, supplier text, sellable boolean, moq numeric);
 insert into seed_items values
  -- finished goods (made in-house; lead time = production days)
- (1,'TTC-CB-WAL','Walnut Cutting Board 12×18','Edge-grain black walnut board, oiled & waxed','Cutting Boards','finished','ea',0,89,2,null,true,1),
- (2,'TTC-CB-MAP','Maple Cutting Board 12×18','Edge-grain hard maple board, oiled & waxed','Cutting Boards','finished','ea',0,69,2,null,true,1),
- (3,'TTC-CHB-CHR','Cherry Charcuterie Board','Cherry serving board with brass handle','Serving Boards','finished','ea',0,79,2,null,true,1),
+ (1,'TTC-CB-WAL','Walnut Cutting Board 12×18','Edge-grain black walnut board, oiled & waxed','Cutting Boards','finished','ea',0,84,2,null,true,1),
+ (2,'TTC-CB-MAP','Maple Cutting Board 12×18','Edge-grain hard maple board, oiled & waxed','Cutting Boards','finished','ea',0,65,2,null,true,1),
+ (3,'TTC-CHB-CHR','Cherry Charcuterie Board','Cherry serving board with brass handle','Serving Boards','finished','ea',0,76,2,null,true,1),
  (4,'TTC-STL-PIN','Pine Step Stool','Two-step pine stool, poly finish','Home Goods','finished','ea',0,59,3,null,true,1),
  (5,'TTC-SHF-OAK','Oak Floating Shelf 36"','Red oak floating shelf with iron brackets','Home Goods','finished','ea',0,119,3,null,true,1),
- (6,'TTC-BB-4OZ','Board Butter 4 oz','Mineral oil + beeswax conditioner in a tin','Care Products','finished','ea',0,14,1,null,true,1),
- (7,'TTC-GS-MAP','Maple Board Gift Set','Kit: maple board + board butter, gift-boxed with twine','Gift Sets','finished','ea',0,99,1,null,true,1),
+ (6,'TTC-BB-4OZ','Board Butter 4 oz','Mineral oil + beeswax conditioner in a tin','Care Products','finished','ea',0,13,1,null,true,1),
+ (7,'TTC-GS-MAP','Maple Board Gift Set','Kit: maple board + board butter, gift-boxed with twine','Gift Sets','finished','ea',0,94,1,null,true,1),
  -- resale (bought finished, sold as-is)
  (8,'TTC-R-SCRP','Stainless Bench Scraper','6" stainless steel scraper with walnut handle','Kitchen Tools','resale','ea',5.40,16,6,'Provo Hardware Wholesale',true,6),
  (9,'TTC-R-SHRP','Knife Sharpener','Two-stage pull-through knife sharpener','Kitchen Tools','resale','ea',11.25,29,6,'Provo Hardware Wholesale',true,6),
  -- purchased components
- (10,'RM-WAL-84','Walnut Lumber 8/4','Kiln-dried black walnut, 8/4, per board foot','Lumber','component','bd ft',14.50,0,7,'Wasatch Hardwoods',false,20),
- (11,'RM-MAP-84','Hard Maple Lumber 8/4','Kiln-dried hard maple, 8/4, per board foot','Lumber','component','bd ft',7.25,0,7,'Wasatch Hardwoods',false,20),
+ (10,'RM-WAL-84','Walnut Lumber 8/4','Kiln-dried black walnut, 8/4, per board foot','Lumber','component','bd ft',13.75,0,7,'Wasatch Hardwoods',false,20),
+ (11,'RM-MAP-84','Hard Maple Lumber 8/4','Kiln-dried hard maple, 8/4, per board foot','Lumber','component','bd ft',6.95,0,7,'Wasatch Hardwoods',false,20),
  (12,'RM-CHR-44','Cherry Lumber 4/4','Kiln-dried cherry, 4/4, per board foot','Lumber','component','bd ft',9.80,0,7,'Wasatch Hardwoods',false,20),
  (13,'RM-OAK-44','Red Oak Lumber 4/4','Red oak, 4/4, per board foot','Lumber','component','bd ft',6.40,0,5,'Utah Lumber Supply',false,20),
  (14,'RM-PIN-112','Pine Board 1×12×8''','Select pine board 1×12, 8 ft','Lumber','component','ea',18.00,0,5,'Utah Lumber Supply',false,5),
  (15,'RM-OIL-16','Food-Grade Mineral Oil 16 oz','USP food-grade mineral oil, 16 oz bottle','Finishes','component','bottle',6.50,12.99,10,'Bonneville Finishing Supply',true,12),
- (16,'RM-WAX-1LB','Beeswax Block 1 lb','Local yellow beeswax block','Finishes','component','block',9.00,16.99,14,'Beehive Apiary Co.',true,5),
+ (16,'RM-WAX-1LB','Beeswax Block 1 lb','Local yellow beeswax block','Finishes','component','block',8.25,16.99,14,'Beehive Apiary Co.',true,5),
  (17,'RM-FEET-4','Rubber Feet (4-pack)','Non-slip rubber feet with screws, pack of 4','Hardware','component','pack',1.20,0,4,'Fastener Depot',false,25),
  (18,'RM-SCRW-100','Wood Screws #8×1¼" (100)','Box of 100 wood screws','Hardware','component','box',7.50,0,4,'Fastener Depot',false,2),
  (19,'RM-GLUE-16','Waterproof Wood Glue 16 oz','Type-I waterproof wood glue','Finishes','component','bottle',5.75,0,10,'Bonneville Finishing Supply',false,4),
  (20,'RM-SAND-DSC','Sanding Discs 120/220','5" hook-and-loop sanding disc','Abrasives','component','ea',0.45,0,10,'Bonneville Finishing Supply',false,100),
  (21,'RM-KEYH-PR','Keyhole Hangers (pair)','Flush-mount keyhole hangers, pair','Hardware','component','pair',2.10,0,4,'Fastener Depot',false,10),
  (22,'RM-BRKT-PR','Iron Shelf Brackets (pair)','Black iron hidden shelf brackets, pair','Hardware','component','pair',11.50,0,6,'Provo Hardware Wholesale',false,5),
- (23,'PK-BOX-LG','Kraft Gift Box','Large kraft gift box with insert','Packaging','component','ea',3.25,0,12,'Summit Packaging',false,25),
+ (23,'PK-BOX-LG','Kraft Gift Box','Large kraft gift box with insert','Packaging','component','ea',2.95,0,12,'Summit Packaging',false,25),
  (24,'PK-TWINE-YD','Jute Twine Ribbon','Natural jute twine, per yard','Packaging','component','yd',0.30,0,12,'Summit Packaging',false,50),
- (25,'PK-TIN-4OZ','Metal Tin 4 oz with Lid','Screw-top tin for board butter','Packaging','component','ea',0.85,0,12,'Summit Packaging',false,50),
+ (25,'PK-TIN-4OZ','Metal Tin 4 oz with Lid','Screw-top tin for board butter','Packaging','component','ea',0.79,0,12,'Summit Packaging',false,50),
  (26,'PK-LABEL','Brand Label Sticker','Timpanogos Timber logo label','Packaging','component','ea',0.18,0,12,'Summit Packaging',false,100),
  (27,'RM-HNDL-BR','Brass Pull Handle','Solid brass pull handle for serving boards','Hardware','component','ea',4.80,0,6,'Provo Hardware Wholesale',false,10),
  (28,'RM-POLY-QT','Water-Based Polyurethane (qt)','Satin water-based poly, quart','Finishes','component','qt',14.00,0,10,'Bonneville Finishing Supply',false,2),
@@ -132,6 +132,10 @@ update public.items i set standard_cost = r.cost from (
 update public.items i set standard_cost = r.cost from (
   select b.parent_item_id, sum(b.qty_per * c.standard_cost) cost from public.bom_lines b join public.items c on c.id = b.component_item_id group by 1) r
  where r.parent_item_id = i.id;
+
+-- the catalogue was set up before the history begins
+update public.price_history set changed_at = ((now() at time zone 'America/Denver')::date - 207)::timestamp at time zone 'America/Denver',
+       changed_by = 'Morgan Reyes', source = 'Item created';
 
 -- ---------------------------------------------------------------- customers
 insert into public.customers(name, email, phone, address, customer_type) values
@@ -210,9 +214,9 @@ $$;
 -- seasonality: month profile × holiday bumps × growth trend
 create or replace function pg_temp.season(profile text, d date, d0 date) returns numeric language sql immutable as $$
   select (case profile
-    when 'gift' then (array[3.0,0.6,0.6,0.6,1.3,1.2,0.6,0.6,0.8,1.1,2.6,3.0])[extract(month from d)::int]
-    when 'home' then (array[1.2,1.0,1.0,1.0,0.95,0.9,0.85,1.0,1.25,1.3,1.2,1.3])[extract(month from d)::int]
-    else             (array[1.6,0.8,0.85,0.85,1.0,1.1,0.9,0.85,0.95,1.05,1.35,1.6])[extract(month from d)::int]
+    when 'gift' then (array[1.6,0.6,0.6,0.7,1.2,1.7,1.8,1.5,0.8,1.4,2.6,3.0])[extract(month from d)::int]
+    when 'home' then (array[1.3,0.9,0.95,1.0,1.0,1.2,1.25,1.15,1.0,1.2,1.35,1.5])[extract(month from d)::int]
+    else             (array[1.3,0.8,0.85,0.85,1.0,1.35,1.4,1.3,0.95,1.15,1.4,1.7])[extract(month from d)::int]
   end)
   * case when profile in ('general','gift') and d between date '2026-05-03' and date '2026-05-09' then 1.5   -- Mother's Day week
          when profile in ('home','tool')    and d between date '2026-06-14' and date '2026-06-20' then 1.4   -- Father's Day week
@@ -321,6 +325,26 @@ begin
   for d in select generate_series(v_start, v_end, interval '1 day')::date loop
     dow := extract(isodow from d)::int;   -- 1 = Monday ... 7 = Sunday (closed)
     dowf := (array[0.75, 0.8, 0.85, 0.95, 1.25, 1.55, 0])[dow];
+
+    -- price & cost changes during the year
+    for r in select * from (values
+        (date '2026-05-26', 'TTC-CB-WAL',  'price',          89::numeric, 'Pre-wedding-season price update'),
+        (date '2026-05-26', 'TTC-CB-MAP',  'price',          69,          'Pre-wedding-season price update'),
+        (date '2026-07-01', 'RM-WAL-84',   'standard_cost',  14.50,       'Wasatch Hardwoods price increase (+5.5%)'),
+        (date '2026-08-03', 'RM-MAP-84',   'standard_cost',  7.25,        'Wasatch Hardwoods price increase (+4.3%)'),
+        (date '2026-09-01', 'RM-WAX-1LB',  'standard_cost',  9.00,        'Beehive Apiary — short honey season (+9%)'),
+        (date '2026-09-08', 'TTC-CHB-CHR', 'price',          79,          'Cherry cost pass-through'),
+        (date '2026-09-08', 'TTC-BB-4OZ',  'price',          14,          'Beeswax cost pass-through'),
+        (date '2026-09-15', 'PK-BOX-LG',   'standard_cost',  3.25,        'Summit Packaging price increase (+10%)'),
+        (date '2026-10-01', 'PK-TIN-4OZ',  'standard_cost',  0.85,        'Summit Packaging price increase (+7.6%)'),
+        (date '2026-10-01', 'TTC-GS-MAP',  'price',          99,          'Holiday season pricing')
+      ) x(on_date, sku, field, val, why) where x.on_date = d loop
+      perform pg_temp.clock(d, 7.75, 'Morgan Reyes');
+      perform set_config('app.change_source', r.why, false);
+      if r.field = 'price' then update public.items set price = r.val where sku = r.sku;
+      else update public.items set standard_cost = r.val where sku = r.sku; end if;
+      perform set_config('app.change_source', '', false);
+    end loop;
 
     -- monthly / bi-weekly operating expenses
     if extract(day from d) = 1 then

@@ -74,10 +74,12 @@ logged-in user) sees the same numbers instantly. Nothing on any report is typed 
 - **Start** = issue components (backflush per BOM) from inventory to **Work in Process**; records start time and rolled-up cost.
 - **Complete** = good + scrapped must equal started; reworked is a subset of good; a **quality reason code** is required for scrap/rework. Good units go to inventory at cost per unit started; scrapped units' cost goes to *Production Scrap* expense. Records finish time.
 - **Forecast & build plan tab:** forecasts demand for every product we make (including boards used inside gift sets), nets it against stock and work in progress, adds a safety buffer, rounds to batches, and checks the total against the workshop's typical weekly output (capacity). One click creates the production orders. Talking point: *make-to-stock* from the forecast vs. *make-to-order* from MRP.
+- **Sort by product type:** Open orders and All orders have a *Product type* filter and *Group by product type*; every column header sorts.
 - **Production & quality report** (date range): yield, first-pass yield, scrap rate & cost, on-time completion, average cycle time, throughput/day, avg unit cost, charts by item and by reason code, and the full order list.
 
 ### 7. Purchase orders & suppliers  (Supply chain)
-- New PO → **Create & send**: order date = today, **expected date = today + supplier's quoted lead time**.
+- New PO → **Select multiple** to tick several items at once (or a whole group), set each quantity (defaults to the supplier's minimum order), then **Add**. Scanning and the dropdown still work too.
+- **Create & send**: order date = today, **expected date = today + supplier's quoted lead time**.
 - Open the PO → scan labels or type quantities → **Post receipt** (choose location). Partial receipts → *Partially Received*; complete → *Received*; **Pay supplier** in full → *Closed* (or close short). Receipt raises inventory, updates weighted-average cost, and creates **A/P due = receipt date + terms (Net 15/30/60)**.
 - PO list shows expected vs. actual receipt, days late, and fill %.
 - **Supplier scorecard** (one screen): on-time %, average actual vs. quoted lead time, fill rate, owed / overdue / next due date, overall score with **Keep / Watch / Replace**. Score = 40% on-time + 30% fill + 30% lead-time accuracy. All computed from PO history.
@@ -103,6 +105,7 @@ logged-in user) sees the same numbers instantly. Nothing on any report is typed 
 - **Inventory valuation**: on-hand × weighted-average cost, by item, location and category.
 - **Inventory turnover** = COGS ÷ average inventory (beginning and ending values are rebuilt from the inventory ledger), annualized, plus days of inventory.
 - **General ledger** tab: trial balance sums to $0.00 — proof the books balance.
+- **Price & cost history** tab: every change to a selling price, supplier (purchase) cost and weighted-average cost — old → new, % change, when, who, and why (a manager's reason, or *"Supplier cost on PO-3140"* when a receipt came in at a new cost). The chart shows price, purchase cost and average cost as step lines plus each production order's unit cost. Talking point: *"Walnut lumber went up 5.5% in July; average cost followed gradually, so we raised the board price to protect margin."* Live test: edit an item's price in Items & BOMs → it appears at the top of the log.
 
 ### 11. Reports  (Finance → Reports)
 Sales by day/week/month with gross profit, top sellers, low stock with suggested qty & order-by, inventory by location, supplier lead time actual vs. quoted. All exportable to CSV.
@@ -112,7 +115,8 @@ Sales by day/week/month with gross profit, top sellers, low stock with suggested
 - **Realtime:** the header says "Live — synced with all users". A sale on laptop A updates laptop B's inventory without refreshing, and B gets a toast ("Jordan Lee: POS sale POS-…"). Every action records the user's name (transaction history, activity feed).
 
 ## Demand forecasting  (Supply chain → Demand Forecast)
-- Forecasts every item 4–12 weeks out from 26 weeks of real transactions with three methods: **moving average**, **exponential smoothing (α)** and **trend/Holt (α, β)**.
+- Forecasts every item 4–12 weeks out from 26 weeks of real transactions with four methods: **moving average**, **exponential smoothing (α)**, **trend/Holt (α, β)** and **seasonal**.
+- **Seasonality:** the history has a **summer wedding bump (Jun–Aug)** and **holiday spending (Oct–Jan, peak December)**, and purchases rise ahead of each. The **Seasonal calendar** (bottom of the page; managers can edit it) holds a monthly index — 1.00 = normal, 1.70 = December. The seasonal method removes the calendar from history, smooths the underlying level, then applies the calendar to future weeks, so the forecast climbs into December. The production build plan uses the same model. Say: *"A plain average looks backward; it would under-build for Christmas."*
 - Each method is **back-tested** on the last 8 weeks; *Auto* picks the most accurate per item and shows accuracy (100% − MAPE), MAD and bias. The chart shows actuals, back-test forecasts, the forecast and an 80% range.
 - **Stockout risk:** days of cover = on hand ÷ forecast daily demand; shorter than lead time → "Order now".
 - Live test: drag the α slider or switch methods and the forecasts and accuracy recalculate. Say: *"Forecasting drives independent demand; MRP turns it into dependent demand for components."*

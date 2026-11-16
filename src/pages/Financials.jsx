@@ -15,12 +15,13 @@ export default function Financials() {
   return (
     <>
       <PageHeader icon={Landmark} title="Financial Reporting" subtitle="Profit & loss, inventory valuation and turnover — computed live from the general ledger and inventory transactions" />
-      <Tabs value={tab} onChange={setTab} tabs={[{ value: 'pnl', label: 'Profit & Loss' }, { value: 'valuation', label: 'Inventory valuation' }, { value: 'turnover', label: 'Inventory turnover' }, { value: 'cash', label: 'Cash-flow forecast' }, { value: 'gl', label: 'General ledger' }]} />
-      {!['valuation', 'cash'].includes(tab) && <Card className="mb-5"><DateRange from={r.from} to={r.to} onChange={(from, to) => setR({ from, to })} /></Card>}
+      <Tabs value={tab} onChange={setTab} tabs={[{ value: 'pnl', label: 'Profit & Loss' }, { value: 'valuation', label: 'Inventory valuation' }, { value: 'turnover', label: 'Inventory turnover' }, { value: 'cash', label: 'Cash-flow forecast' }, { value: 'prices', label: 'Price & cost history' }, { value: 'gl', label: 'General ledger' }]} />
+      {!['valuation', 'cash', 'prices'].includes(tab) && <Card className="mb-5"><DateRange from={r.from} to={r.to} onChange={(from, to) => setR({ from, to })} /></Card>}
       {tab === 'pnl' && <PnL r={r} />}
       {tab === 'valuation' && <Valuation />}
       {tab === 'turnover' && <Turnover r={r} />}
       {tab === 'cash' && <CashForecast />}
+      {tab === 'prices' && <PriceHistory />}
       {tab === 'gl' && <Ledger r={r} />}
     </>
   )
@@ -209,6 +210,102 @@ export function CashForecast() {
         <p><b>Cash in:</b> store + portal sales at the average of the last 8 weeks; open wholesale invoices collected 30 days after shipment; confirmed (Placed) wholesale orders collected 30 days after their requested date.</p>
         <p><b>Cash out:</b> supplier bills on their due dates (receipt date + payment terms); open purchase orders paid at expected receipt + terms; payroll and overhead at their 12-week average; rent on the 1st; sales tax collected is remitted on the 20th.</p>
         <p>Why it matters: purchasing, MRP and sales decisions all hit the bank account. Placing a big PO or landing a wholesale order changes this chart immediately.</p>
+      </Explain>
+    </div>
+  )
+}
+
+const FIELD_LABEL = { price: 'Selling price', standard_cost: 'Purchase cost', avg_cost: 'Average cost', production: 'Production cost' }
+const FIELD_COLOR = { price: '#2f7a55', standard_cost: '#0ea5e9', avg_cost: '#7a5632', production: '#f59e0b' }
+
+export function PriceHistory() {
+  const { data: hist = [] } = useQuery({ queryKey: ['price_history'], queryFn: () => sel(supabase.from('price_history').select('*, item:items(id, sku, name, category, item_type, uom)').order('changed_at', { ascending: false }).limit(5000)) })
+  const { data: mos = [] } = useQuery({ queryKey: ['mo_costs'], queryFn: () => sel(supabase.from('production_orders').select('number, item_id, unit_cost, qty_good, finished_at').eq('status', 'Completed').order('finished_at')) })
+  const [cat, setCat] = useState('')
+  const [itemId, setItemId] = useState('')
+  const [kind, setKind] = useState('changes')
+  const items = Object.values(Object.fromEntries(hist.map((h) => [h.item_id, h.item])))
+  const cats = [...new Set(items.map((i) => i.category))].sort()
+  const shown = items.filter((i) => !cat || i.category === cat).sort((a, b) => a.name.localeCompare(b.name))
+  const sel_ = Number(itemId || shown.find((i) => hist.some((h) => h.item_id === i.id && h.field === 'price' && h.old_value != null))?.id || shown[0]?.id)
+  const it = items.find((i) => i.id === sel_)
+
+  // timeline for the chart: carry each value forward until it changes
+  const series = (() => {
+    const ev = hist.filter((h) => h.item_id === sel_).slice().reverse()
+    const cur = {}; const rows = []
+    ev.forEach((h) => { cur[h.field] = Number(h.new_value) || (h.field === 'price' ? 0 : null); rows.push({ t: new Date(h.changed_at).getTime(), ...cur }) })
+    mos.filter((m) => m.item_id === sel_).forEach((m) => rows.push({ t: new Date(m.finished_at).getTime(), production: Number(m.unit_cost) }))
+    rows.sort((a, b) => a.t - b.t)
+    const out = []; const last = {}
+    rows.forEach((r) => { Object.assign(last, Object.fromEntries(Object.entries(r).filter(([k]) => k !== 'production' && k !== 't'))); out.push({ ...last, t: r.t, production: r.production }) })
+    if (out.length) out.push({ ...last, t: Date.now() })
+    return out
+  })()
+  const monthTicks = (() => {
+    if (!series.length) return []
+    const d = new Date(series[0].t); d.setDate(1); d.setHours(0, 0, 0, 0); d.setMonth(d.getMonth() + 1)
+    const ticks = []; for (; d.getTime() <= series[series.length - 1].t; d.setMonth(d.getMonth() + 1)) ticks.push(d.getTime())
+    return ticks
+  })()
+
+  const log = hist.filter((h) => h.old_value != null && !(h.field !== 'price' && Number(h.new_value) === 0) && (!cat || h.item.category === cat) && (!itemId || h.item_id === sel_)
+    && (kind === 'all' ? true : kind === 'changes' ? h.field !== 'avg_cost' : h.field === kind))
+  const first = (field) => { const r = hist.filter((h) => h.item_id === sel_ && h.field === field); return r.length ? Number(r[r.length - 1].new_value) : null }
+  const now = (field) => { const r = hist.find((h) => h.item_id === sel_ && h.field === field); return r ? Number(r.new_value) : null }
+  // made items carry no purchase cost (0) — don't show it as a -100% change
+  const chg = (a, b) => (a && b != null ? ((b - a) / a) * 100 : null)
+  const moCosts = mos.filter((m) => m.item_id === sel_)
+  return (
+    <div className="space-y-5">
+      <Card>
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Product group"><Select className="w-48" value={cat} onChange={(e) => { setCat(e.target.value); setItemId('') }} placeholder="All groups" options={cats.map((c) => ({ value: c, label: c }))} /></Field>
+          <Field label="Item"><Select className="w-72" value={itemId} onChange={(e) => setItemId(e.target.value)} placeholder="All items (chart: first with changes)" options={shown.map((i) => ({ value: i.id, label: `${i.name} (${i.sku})` }))} /></Field>
+          <Field label="Show changes to"><Select className="w-56" value={kind} onChange={(e) => setKind(e.target.value)} options={[{ value: 'changes', label: 'Selling prices & purchase costs' }, { value: 'price', label: 'Selling prices only' }, { value: 'standard_cost', label: 'Purchase costs only' }, { value: 'avg_cost', label: 'Average-cost recalculations' }, { value: 'all', label: 'Everything' }]} /></Field>
+        </div>
+      </Card>
+      {it && (
+        <div className="grid gap-5 lg:grid-cols-3">
+          <Card className="lg:col-span-2" title={`${it.name} — price & cost over time`} subtitle="Step lines change on the day a new price/cost took effect; orange dots are the rolled-up unit cost of each completed production order">
+            <div className="h-72"><ResponsiveContainer><ComposedChart data={series}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+              <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']} ticks={monthTicks} tickFormatter={(t) => new Date(t).toLocaleDateString('en-US', { month: 'short' })} tick={{ fontSize: 11 }} />
+              <YAxis tickFormatter={(v) => '$' + v} tick={{ fontSize: 11 }} />
+              <Tooltip labelFormatter={(t) => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} formatter={(v, n) => [money(v), n]} />
+              <Legend />
+              {['price', 'standard_cost', 'avg_cost'].filter((f) => series.some((r) => r[f] > 0)).map((f) => (
+                <Line key={f} type="stepAfter" dataKey={f} name={FIELD_LABEL[f]} stroke={FIELD_COLOR[f]} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />))}
+              {moCosts.length > 0 && <Line dataKey="production" name="Production cost (per order)" stroke={FIELD_COLOR.production} strokeWidth={0} dot={{ r: 3, fill: FIELD_COLOR.production }} isAnimationActive={false} />}
+            </ComposedChart></ResponsiveContainer></div>
+          </Card>
+          <Card title="Then vs now">
+            <dl className="space-y-2 text-sm">
+              {[['Selling price', first('price'), now('price')], ['Purchase / standard cost', first('standard_cost'), now('standard_cost')], ['Average cost', first('avg_cost') ?? first('standard_cost'), now('avg_cost')]].filter(([, a, b]) => b > 0).map(([l, a, b]) => (
+                <div key={l} className="flex items-center justify-between gap-2 border-b border-stone-100 pb-1.5">
+                  <dt className="text-stone-500">{l}</dt>
+                  <dd className="text-right tabular-nums">{money(a)} → <b>{money(b)}</b>{chg(a, b) != null && Math.abs(chg(a, b)) >= 0.05 && <span className={cx('ml-1 text-xs', chg(a, b) > 0 ? 'text-red-600' : 'text-emerald-700')}>{chg(a, b) > 0 ? '+' : ''}{num(chg(a, b), 1)}%</span>}</dd>
+                </div>))}
+              {moCosts.length > 0 && <div className="flex items-center justify-between gap-2"><dt className="text-stone-500">Production cost / unit</dt><dd className="text-right tabular-nums">{money(moCosts[0].unit_cost)} → <b>{money(moCosts[moCosts.length - 1].unit_cost)}</b> <span className="text-xs text-stone-400">({moCosts.length} builds)</span></dd></div>}
+              {now('price') > 0 && (now('avg_cost') || now('standard_cost')) && <div className="flex items-center justify-between gap-2 pt-1"><dt className="text-stone-500">Gross margin now</dt><dd className="font-semibold">{pct((1 - (now('avg_cost') || now('standard_cost')) / now('price')) * 100)}</dd></div>}
+            </dl>
+          </Card>
+        </div>
+      )}
+      <Card title={`Change log (${log.length})`} subtitle="Every price and cost change, newest first — with who made it and why" padded={false}>
+        <Table rows={log} maxHeight="55vh" dense defaultSort={null} empty="No changes recorded yet." columns={[
+          { label: 'When', sort: (h) => h.changed_at, render: (h) => fmtDateTime(h.changed_at) },
+          { label: 'Item', sort: (h) => h.item.name, render: (h) => <button className="text-left hover:underline" onClick={() => setItemId(String(h.item_id))}>{h.item.name}<div className="text-xs text-stone-500">{h.item.category}</div></button> },
+          { label: 'What changed', sort: (h) => h.field, render: (h) => <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: FIELD_COLOR[h.field] }} />{FIELD_LABEL[h.field]}</span> },
+          { label: 'Old', num: true, render: (h) => money(h.old_value) },
+          { label: 'New', num: true, render: (h) => <b>{money(h.new_value)}</b> },
+          { label: 'Change', num: true, sort: (h) => chg(Number(h.old_value), Number(h.new_value)), render: (h) => { const c = chg(Number(h.old_value), Number(h.new_value)); return c == null ? '' : <span className={c > 0 ? (h.field === 'price' ? 'text-emerald-700' : 'text-red-600') : (h.field === 'price' ? 'text-red-600' : 'text-emerald-700')}>{c > 0 ? '+' : ''}{num(c, 1)}%</span> } },
+          { label: 'By', render: (h) => h.changed_by },
+          { label: 'Why / source', render: (h) => <span className="whitespace-normal text-xs text-stone-600">{h.source}</span> },
+        ]} />
+      </Card>
+      <Explain title="How price history is captured">
+        <p>A database trigger records every change to an item's <b>selling price</b>, <b>purchase (standard) cost</b> and <b>weighted-average cost</b>: old value, new value, when, who, and why (a manual edit's reason, or the purchase order whose receipt set a new supplier cost). <b>Production cost</b> comes from each completed production order's rolled-up component cost. Use it to see how supplier increases flow into average cost and margin, and when prices were raised to protect margin.</p>
       </Explain>
     </div>
   )
