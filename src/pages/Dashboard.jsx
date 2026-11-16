@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { LayoutDashboard, AlertTriangle, AlertCircle, CircleDot, DollarSign, Boxes, ClipboardList, Truck, Factory, ShieldAlert, Activity } from 'lucide-react'
+import { LayoutDashboard, AlertTriangle, AlertCircle, CircleDot, DollarSign, Boxes, ClipboardList, Truck, Factory, ShieldAlert, Activity, CheckCircle2, Clock } from 'lucide-react'
 import { supabase, sel } from '../lib/supabase'
 import { useRpcQuery } from '../lib/hooks'
 import { money, money0, fmtShort, fmtDateTime, num, pct } from '../lib/format'
@@ -13,9 +13,13 @@ const SEV = {
   low: { icon: CircleDot, cls: 'border-stone-200 bg-white', ic: 'text-stone-400', label: 'FYI' },
 }
 
+const clock = (t) => (t ? new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + (new Date(t).toDateString() !== new Date().toDateString() ? ' ' + new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '') : '—')
+const dur = (m) => (m == null ? '—' : m < 1 ? '<1 min' : m < 60 ? `${m} min` : m < 1440 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h`)
+const since = (t) => { const m = Math.round((Date.now() - new Date(t)) / 60000); return `${clock(t)} (${dur(Math.max(0, m))})` }
+
 export default function Dashboard() {
   const nav = useNavigate()
-  const { data, isLoading } = useRpcQuery('dashboard')
+  const { data, isLoading } = useRpcQuery('action_center')
   const cash = useRpcQuery('cash_forecast', { p_weeks: 8 }).data
   const feed = useQuery({
     queryKey: ['activity'],
@@ -53,6 +57,7 @@ export default function Dashboard() {
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium">{a.title}</div>
                     <div className="text-xs text-stone-600">{a.detail}</div>
+                    {a.first_seen && <div className="mt-0.5 flex items-center gap-1 text-[11px] text-stone-400"><Clock className="h-3 w-3" />Open since {since(a.first_seen)}</div>}
                   </div>
                   <Badge color={a.severity === 'high' ? 'red' : a.severity === 'medium' ? 'amber' : 'gray'}>{s.label}</Badge>
                 </button>
@@ -83,6 +88,25 @@ export default function Dashboard() {
           </Card>
         </div>
       </div>
+
+      <Card className="mt-5" title={<span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" />Completed today ({data.completed_today?.length || 0})</span>}
+        subtitle="Priorities that were cleared today — when the alert appeared, when it was resolved, how long it took, and by whom when it can be traced" padded={false}>
+        {data.completed_today?.length ? (
+          <table className="min-w-full divide-y divide-stone-100 text-sm">
+            <thead className="bg-stone-50"><tr><th className="th">Task</th><th className="th">Alerted</th><th className="th">Completed</th><th className="th text-right">Took</th><th className="th">By / how</th></tr></thead>
+            <tbody className="divide-y divide-stone-100">
+              {data.completed_today.map((c, i) => (
+                <tr key={i} className="cursor-pointer hover:bg-emerald-50/40" onClick={() => c.link && nav(c.link)}>
+                  <td className="td"><div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /><span className="whitespace-normal">{c.title}</span></div></td>
+                  <td className="td text-stone-600">{clock(c.first_seen)}</td>
+                  <td className="td text-stone-600">{clock(c.resolved_at)}</td>
+                  <td className="td num font-medium">{dur(c.minutes)}</td>
+                  <td className="td"><div className="whitespace-normal text-xs"><b>{c.resolved_by || '—'}</b>{c.resolution && <span className="text-stone-500"> · {c.resolution}</span>}</div></td>
+                </tr>))}
+            </tbody>
+          </table>
+        ) : <p className="px-4 py-6 text-center text-sm text-stone-400">Nothing completed yet today — clear a priority above and it will show up here with its time to resolve.</p>}
+      </Card>
 
       <Card className="mt-5" title="Net sales — last 30 days" subtitle="Fulfilled sales from POS, sales orders and the customer portal">
         <div className="h-64">

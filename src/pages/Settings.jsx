@@ -35,6 +35,7 @@ export default function SettingsPage() {
         </div>
       </Card>
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <PromoCodes />
         <Card title="Users & roles" subtitle="Everyone shares one live database — changes made by any user appear for all others instantly" padded={false}>
           <Table rows={users} columns={[
             { label: 'Name', render: (u) => <div><div className="font-medium">{u.full_name}</div><div className="text-xs text-stone-500">{u.email}</div></div> },
@@ -48,5 +49,36 @@ export default function SettingsPage() {
         </div>
       </div>
     </>
+  )
+}
+
+function PromoCodes() {
+  const { isManager } = useAuth()
+  const { data = [], refetch } = useQuery({ queryKey: ['promos'], queryFn: () => sel(supabase.from('promo_codes').select('*').order('created_at')) })
+  const [f, setF] = useState({ code: '', label: '', kind: 'percent', value: '' })
+  const save = useAction(async () => {
+    const { error } = await supabase.from('promo_codes').insert({ code: f.code.trim().toLowerCase(), label: f.label || f.code, kind: f.kind, value: Number(f.value) })
+    if (error) throw new Error(error.message.includes('duplicate') ? 'That code already exists' : error.message)
+  }, { success: 'Promo code added', onSuccess: () => { setF({ code: '', label: '', kind: 'percent', value: '' }); refetch() } })
+  const toggle = useAction(async (p) => { const { error } = await supabase.from('promo_codes').update({ active: !p.active }).eq('code', p.code); if (error) throw new Error(error.message) }, { onSuccess: () => refetch() })
+  return (
+    <Card title="Promo codes" subtitle="Customers enter these in the portal; they're case-insensitive" className="lg:col-span-2" padded={false}>
+      <Table rows={data} rowKey="code" dense columns={[
+        { label: 'Code', render: (p) => <span className="font-mono font-semibold">{p.code.toUpperCase()}</span> },
+        { label: 'Description', key: 'label' },
+        { label: 'Discount', render: (p) => (p.kind === 'percent' ? `${Number(p.value)}% off` : `$${Number(p.value)} off`) },
+        { label: 'Times used', num: true, key: 'uses' },
+        { label: 'Status', render: (p) => (isManager ? <Button size="sm" variant={p.active ? 'secondary' : 'ghost'} onClick={() => toggle.mutate(p)}>{p.active ? 'Active — turn off' : 'Off — turn on'}</Button> : p.active ? 'Active' : 'Off') },
+      ]} />
+      {isManager && (
+        <div className="flex flex-wrap items-end gap-2 border-t border-stone-100 p-3">
+          <Field label="Code"><Input className="w-36" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} /></Field>
+          <Field label="Description"><Input className="w-56" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} /></Field>
+          <Field label="Type"><Select className="w-32" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })} options={[{ value: 'percent', label: '% off' }, { value: 'amount', label: '$ off' }]} /></Field>
+          <Field label="Value"><Input className="w-24" type="number" value={f.value} onChange={(e) => setF({ ...f, value: e.target.value })} /></Field>
+          <Button disabled={!f.code || !(Number(f.value) > 0)} loading={save.isPending} onClick={() => save.mutate()}>Add code</Button>
+        </div>
+      )}
+    </Card>
   )
 }

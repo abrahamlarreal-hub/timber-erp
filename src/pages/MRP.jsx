@@ -4,7 +4,8 @@ import { Network, Zap, ChevronDown, ChevronRight } from 'lucide-react'
 import { rpc } from '../lib/supabase'
 import { useRpcQuery, useAction } from '../lib/hooks'
 import { qty, fmtShort, fmtDate, money } from '../lib/format'
-import { Button, Card, PageHeader, Table, Badge, Select, Spinner, Explain, cx } from '../components/ui.jsx'
+import { Button, Card, PageHeader, Table, Badge, Select, Spinner, Explain, Modal, cx } from '../components/ui.jsx'
+import { BomBreakdown, ProductStructure, MadeFrom } from '../components/BomTree.jsx'
 
 export default function MRP() {
   const nav = useNavigate()
@@ -13,6 +14,7 @@ export default function MRP() {
   const { data, isLoading, refetch, isFetching } = useRpcQuery('mrp_plan', { p_weeks: weeks })
   const [picked, setPicked] = useState({})
   const [open, setOpen] = useState({})
+  const [breakdown, setBreakdown] = useState(null) // planned order to explode
   useEffect(() => { if (data) setPicked(Object.fromEntries(data.orders.map((o, i) => [i, true]))) }, [data])
   const execute = useAction(() => rpc('create_suggested_orders', {
     p_lines: data.orders.filter((_, i) => picked[i]).map((o) => ({ item_id: o.item_id, qty: Number(o.qty), need_date: o.need_date })), p_source: 'MRP',
@@ -47,7 +49,12 @@ export default function MRP() {
           { label: 'Order by', render: (o) => <span className={cx('font-medium', o.past_due && 'text-red-600')}>{fmtDate(o.order_by)}{o.past_due && ' — EXPEDITE'}</span> },
           { label: 'Source', render: (o) => o.supplier_name || 'Orem Workshop' },
           { label: 'Est. cost', num: true, render: (o) => money(o.qty * o.unit_cost) },
+          { label: '', render: (o) => o.action === 'Build' && <Button size="sm" variant="secondary" onClick={() => setBreakdown(o)}>What's in it?</Button> },
         ]} />
+      </Card>
+
+      <Card title="Product structure — what each product is made of" subtitle="Multi-level bill of materials: parent → child components → their components, with quantities for any build size" className="mb-5">
+        <ProductStructure />
       </Card>
 
       <Card title="Time-phased MRP records" subtitle={`Planning horizon from ${fmtDate(data.today)} · processed level by level (finished goods first, then their components)`} padded={false}>
@@ -80,6 +87,7 @@ export default function MRP() {
                         ))}
                       </tbody>
                     </table>
+                    {it.action === 'Build' && <div className="mt-2"><MadeFrom itemId={it.item_id} /></div>}
                     <div className="mt-2 grid gap-2 text-xs text-stone-600 md:grid-cols-3">
                       <div><b>Demand from:</b> {it.demand.map((d) => `${d.source} (${qty(d.qty)} on ${fmtShort(d.date)})`).join(', ') || '—'}</div>
                       <div><b>Scheduled receipts:</b> {it.receipts.map((d) => `${d.source} (${qty(d.qty)} on ${fmtShort(d.date)})`).join(', ') || '—'}</div>
@@ -101,6 +109,13 @@ export default function MRP() {
           <p>5. <b>BOM explosion:</b> a planned build’s release becomes gross requirements for each component (quantity × qty-per on the BOM). Items are processed by low-level code, so a gift set’s demand flows to maple boards and board butter, and then to lumber, oil, wax, tins and labels.</p>
         </Explain>
       </div>
+      <Modal open={!!breakdown} onClose={() => setBreakdown(null)} size="xl"
+        title={breakdown ? `Planned build: ${qty(breakdown.qty)} × ${breakdown.name} — component breakdown` : ''}>
+        {breakdown && <>
+          <p className="mb-3 text-sm text-stone-600">Releasing this build on <b>{fmtDate(breakdown.order_by)}</b> needs these parts (quantity per unit × {qty(breakdown.qty)}). Sub-assemblies such as the maple board and board butter explode further into their own components — that is how MRP turns one customer order into purchase orders for lumber, oil, wax and packaging.</p>
+          <BomBreakdown itemId={breakdown.item_id} qty={breakdown.qty} />
+        </>}
+      </Modal>
       <div className="mt-3 text-right"><Button variant="link" onClick={() => nav('/purchasing')}>Go to purchase orders →</Button></div>
     </>
   )

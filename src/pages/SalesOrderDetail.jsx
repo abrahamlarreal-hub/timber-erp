@@ -74,6 +74,7 @@ export default function SalesOrderDetail() {
             {Number(o.cogs) > 0 && <><div className="flex justify-between"><dt className="text-stone-500">Cost of goods sold</dt><dd>{money(o.cogs)}</dd></div>
               <div className="flex justify-between"><dt className="text-stone-500">Gross margin</dt><dd>{pct(margin)}</dd></div></>}
           </dl>
+          {o.promo_code && <p className="mt-3 text-xs">Promo code <Badge color="green">{o.promo_code.toUpperCase()}</Badge> applied</p>}
           {o.notes && <p className="mt-3 rounded-lg bg-stone-50 p-2 text-xs text-stone-600">{o.notes}</p>}
           {related.data?.length > 0 && <div className="mt-3 text-xs"><div className="label">Linked orders</div>{related.data.map((r) => (
             <button key={r.id} onClick={() => nav(`/sales/${r.id}`)} className="mr-2 text-brand-700 hover:underline">{r.number} ({r.id === o.backorder_of ? 'original' : 'backorder'}, {r.status})</button>))}</div>}

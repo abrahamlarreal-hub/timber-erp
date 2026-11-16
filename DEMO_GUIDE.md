@@ -122,6 +122,13 @@ Sales by day/week/month with gross profit, top sellers, low stock with suggested
 - **Ask AI (Claude Opus 5.5):** any question in plain English. Claude calls read-only tools (inventory, MRP, suppliers, P&L, cash, sales, production) and can only *propose* orders — a person approves. Good demo prompts: *"Plan purchasing and production for all confirmed orders"*, *"Why is the gift set backordered?"*, *"Can we afford what MRP suggests?"*
 - Talking point — **rules vs. AI**: quick answers are predictable and free but only cover known questions; the AI reasons across modules for new questions, costs a few cents, and is kept safe by read-only tools + human approval (the same "human in the loop" control real ERPs use).
 
+## Newer features (quick reference)
+- **Action Center → Completed today:** every priority is remembered with the time it first appeared; when it's cleared (PO received, order fulfilled, reorder placed, bill paid…) it moves to *Completed today* with alerted time, completed time, how long it took, and who did it. Talking point: response time / accountability.
+- **Inventory sorting:** click the **Total**, **On order**, **Avg cost** (also Value, ROP, location) headers to sort; click again to flip.
+- **Customer repeat orders:** in the portal, tick *Repeat this order every month* — the order is re-created automatically one week before the same day each month (so MRP sees it in time). Customers pause/cancel/change the day under **Repeat orders**; staff see them under Sales Orders → **Repeat orders**.
+- **Promo codes:** TUNGTUNG = 10% off, WRIGHTTHEGOAT = 90% off, CED = $25 off (Christmas gift). Case-insensitive; managed under Settings → Promo codes. Recorded on the order and posted as a sales discount.
+- **MRP product structure:** "Product structure" card shows the multi-level BOM for any product and quantity (sub-assemblies expand, on hand vs short, supplier, lead time, cost, and **cumulative lead time**). Each planned build has **What's in it?**. Talking point: dependent demand flows parent → child.
+
 ## Wow factors
 1. **Action Center** — an auto-prioritized to-do list built from live data across every module (backorders, late POs, items below ROP, bills due, quality holds, orders due), each clickable.
 2. **One-click plan → execution** — MRP and replenishment suggestions become real POs (grouped by supplier) and production orders.

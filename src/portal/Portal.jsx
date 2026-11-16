@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ShoppingBag, LogOut, MapPin, Minus, Plus, CheckCircle2, Search } from 'lucide-react'
 import { supabase, sel, rpc } from '../lib/supabase'
@@ -13,6 +13,8 @@ export default function Portal() {
   const { profile, signOut } = useAuth()
   const status = useRealtimeSync(true)
   const [tab, setTab] = useState('shop')
+  // create any repeat orders that are coming due (a week ahead)
+  useEffect(() => { rpc('run_recurring_orders').catch(() => {}) }, [])
   return (
     <div className="min-h-screen bg-stone-50">
       <header className="border-b border-stone-200 bg-white">
@@ -27,8 +29,8 @@ export default function Portal() {
         </div>
       </header>
       <main className="mx-auto max-w-6xl p-4">
-        <Tabs value={tab} onChange={setTab} tabs={[{ value: 'shop', label: 'Shop' }, { value: 'orders', label: 'My orders' }]} />
-        {tab === 'shop' ? <Shop onOrdered={() => setTab('orders')} /> : <MyOrders />}
+        <Tabs value={tab} onChange={setTab} tabs={[{ value: 'shop', label: 'Shop' }, { value: 'orders', label: 'My orders' }, { value: 'repeat', label: 'Repeat orders' }]} />
+        {tab === 'shop' ? <Shop onOrdered={() => setTab('orders')} /> : tab === 'orders' ? <MyOrders /> : <RepeatOrders />}
       </main>
     </div>
   )
@@ -41,17 +43,31 @@ function Shop({ onOrdered }) {
   const [cart, setCart] = useState({})
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('')
-  const [pickup, setPickup] = useState({ loc: '', date: addDays(isoDate(), 1), payNow: false })
+  const [pickup, setPickup] = useState({ loc: '', date: addDays(isoDate(), 1), payNow: false, repeat: false })
+  const [promoText, setPromoText] = useState('')
+  const [promo, setPromo] = useState(null) // validated promo
+  const [promoErr, setPromoErr] = useState(null)
+  const applyPromo = async () => {
+    setPromoErr(null)
+    if (!promoText.trim()) return
+    const r = await rpc('check_promo', { p_code: promoText }).catch(() => ({ valid: false }))
+    if (r.valid) setPromo(r); else { setPromo(null); setPromoErr('That promo code isn\'t valid.') }
+  }
   const [done, setDone] = useState(null)
   const place = useAction(() => rpc('place_customer_order', {
     p_location: Number(pickup.loc || locs[locs.length - 1]?.id), p_pickup: pickup.date, p_pay_now: pickup.payNow,
+    p_promo: promo?.code || null, p_repeat_monthly: pickup.repeat,
     p_lines: Object.entries(cart).filter(([, n]) => n > 0).map(([id, n]) => ({ item_id: Number(id), qty: n })),
-  }), { onSuccess: (id) => { setCart({}); setDone(id) } })
+  }), { onSuccess: (id) => { setCart({}); setDone(id); setPromo(null); setPromoText(''); setPickup((x) => ({ ...x, repeat: false })) } })
   const items = (catalog || []).filter((i) => (!q || (i.name + i.category).toLowerCase().includes(q.toLowerCase())) && (!cat || i.category === cat))
   const cats = [...new Set((catalog || []).map((i) => i.category))].sort()
   const byId = useMemo(() => Object.fromEntries((catalog || []).map((i) => [i.id, i])), [catalog])
   const lines = Object.entries(cart).filter(([, n]) => n > 0)
   const sub = lines.reduce((s, [id, n]) => s + n * Number(byId[id]?.price || 0), 0)
+  const promoOff = !promo ? 0 : promo.kind === 'percent' ? sub * Number(promo.value) / 100 : Math.min(sub, Number(promo.value))
+  const net = sub - promoOff
+  const grand = Math.round(net * (1 + tax) * 100) / 100
+  const repeatDay = Math.min(28, Number(String(pickup.date).slice(8, 10)) || 1)
   const locId = Number(pickup.loc || locs[locs.length - 1]?.id)
   if (isLoading) return <Spinner />
   return (
@@ -111,12 +127,28 @@ function Shop({ onOrdered }) {
                 </div>
               )
             })}
-            <div className="border-t pt-2 text-sm"><div className="flex justify-between"><span>Subtotal</span><span>{money(sub)}</span></div><div className="flex justify-between text-stone-500"><span>Est. tax</span><span>{money(sub * tax)}</span></div><div className="flex justify-between font-semibold"><span>Total {pickup.payNow ? '(paid now)' : '(pay at pickup)'}</span><span>{money(sub * (1 + tax))}</span></div></div>
+            <div className="border-t pt-2 text-sm"><div className="flex justify-between"><span>Subtotal</span><span>{money(sub)}</span></div>
+              {promo && <div className="flex justify-between text-emerald-700"><span>Promo {promo.code.toUpperCase()} ({promo.label.split('—').pop().trim()})</span><span>−{money(promoOff)}</span></div>}
+              <div className="flex justify-between text-stone-500"><span>Est. tax</span><span>{money(net * tax)}</span></div><div className="flex justify-between font-semibold"><span>Total {pickup.payNow ? '(paid now)' : '(pay at pickup)'}</span><span>{money(grand)}</span></div></div>
           </div>
         )}
         <div className="mt-4 space-y-3">
           <Field label="Pick up at"><Select value={pickup.loc || locs[locs.length - 1]?.id || ''} onChange={(e) => setPickup({ ...pickup, loc: e.target.value })} options={locs.map((l) => ({ value: l.id, label: `${l.name} — ${l.address}` }))} /></Field>
           <Field label="Pickup date"><Input type="date" min={isoDate()} value={pickup.date} onChange={(e) => setPickup({ ...pickup, date: e.target.value })} /></Field>
+          <label className="flex items-start gap-2 rounded-lg border border-stone-200 p-2.5 text-sm">
+            <input type="checkbox" className="mt-0.5" checked={pickup.repeat} onChange={(e) => setPickup({ ...pickup, repeat: e.target.checked })} />
+            <span><b>Repeat this order every month</b><span className="block text-xs text-stone-500">Same items, ready for pickup on day {repeatDay} of each month. Pay at pickup each time; pause or cancel anytime under "Repeat orders".</span></span>
+          </label>
+          <div>
+            <div className="label">Promo code</div>
+            {promo ? (
+              <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800"><span><b>{promo.code.toUpperCase()}</b> applied — {promo.label}</span><button type="button" className="text-xs underline" onClick={() => { setPromo(null); setPromoText('') }}>Remove</button></div>
+            ) : (
+              <div className="flex gap-2"><Input placeholder="Enter code" value={promoText} onChange={(e) => setPromoText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyPromo() } }} /><Button type="button" variant="secondary" onClick={applyPromo}>Apply</Button></div>
+            )}
+            {promoErr && <p className="mt-1 text-xs text-red-600">{promoErr}</p>}
+            {promo && pickup.repeat && <p className="mt-1 text-[11px] text-stone-500">Promo applies to this first order only.</p>}
+          </div>
           <div>
             <div className="label">Payment</div>
             <div className="grid grid-cols-2 gap-2">
@@ -128,7 +160,7 @@ function Shop({ onOrdered }) {
             </div>
             {pickup.payNow && <p className="mt-1.5 text-[11px] text-stone-500">Demo store: no card is charged — the order is recorded as paid online.</p>}
           </div>
-          <Button className="w-full" size="lg" disabled={!lines.length} loading={place.isPending} onClick={() => place.mutate()}>{pickup.payNow ? `Pay ${money(sub * (1 + tax))} & place order` : 'Place pickup order'}</Button>
+          <Button className="w-full" size="lg" disabled={!lines.length} loading={place.isPending} onClick={() => place.mutate()}>{pickup.payNow ? `Pay ${money(grand)} & place order` : 'Place pickup order'}</Button>
         </div>
       </Card>
       <Modal open={!!done} onClose={() => { setDone(null); onOrdered() }} title="Order placed!">
@@ -155,5 +187,42 @@ function MyOrders() {
         { label: '', render: (o) => o.status === 'Placed' && <Button size="sm" variant="ghost" onClick={() => confirm('Cancel this order?') && cancel.mutate(o.id)}>Cancel</Button> },
       ]} />
     </Card>
+  )
+}
+
+function RepeatOrders() {
+  const { data = [] } = useQuery({ queryKey: ['my_recurring'], queryFn: () => sel(supabase.from('recurring_orders').select('*, location:locations(name)').order('id')) })
+  const items = useQuery({ queryKey: ['catalog'], queryFn: () => rpc('customer_catalog') }).data || []
+  const name = (id) => items.find((i) => i.id === id)?.name || `Item ${id}`
+  const price = (id) => Number(items.find((i) => i.id === id)?.price || 0)
+  const upd = useAction((args) => rpc('update_recurring', args), { success: 'Repeat order updated' })
+  return (
+    <div className="space-y-3">
+      {data.length === 0 && <Card><p className="py-6 text-center text-sm text-stone-500">No repeat orders yet. In the Shop, tick <b>"Repeat this order every month"</b> when you place an order.</p></Card>}
+      {data.map((r) => (
+        <Card key={r.id}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="font-semibold">Every month on day {r.day_of_month} · {r.location?.name}</div>
+              <div className="text-sm text-stone-600">{r.lines.map((l) => `${Number(l.qty)}× ${name(l.item_id)}`).join(', ')}</div>
+              <div className="mt-1 text-xs text-stone-500">About {money(r.lines.reduce((s, l) => s + Number(l.qty) * price(l.item_id), 0))} + tax each month · pay at pickup</div>
+            </div>
+            <div className="text-right">
+              {r.active ? <Badge color="green">Active</Badge> : <Badge color="gray">Paused</Badge>}
+              <div className="mt-1 text-sm">Next pickup: <b>{r.active ? fmtDate(r.next_date) : '—'}</b></div>
+              <div className="text-[11px] text-stone-400">Your order is created a week ahead so it's ready on time.</div>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3 text-sm">
+            <span className="text-stone-500">Change day:</span>
+            <Select className="w-24 py-1" value={r.day_of_month} onChange={(e) => upd.mutate({ p_id: r.id, p_day: Number(e.target.value) })} options={Array.from({ length: 28 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} />
+            <div className="ml-auto flex gap-2">
+              <Button size="sm" variant="secondary" onClick={() => upd.mutate({ p_id: r.id, p_active: !r.active })}>{r.active ? 'Pause' : 'Resume'}</Button>
+              <Button size="sm" variant="ghost" onClick={() => confirm('Cancel this repeat order? Orders already created stay in My orders.') && upd.mutate({ p_id: r.id, p_cancel: true })}>Cancel repeat</Button>
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
   )
 }

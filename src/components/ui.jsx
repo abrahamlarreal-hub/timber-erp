@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { X, CheckCircle2, AlertTriangle, Info, Loader2 } from 'lucide-react'
+import { X, CheckCircle2, AlertTriangle, Info, Loader2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 
 export const cx = clsx
 
@@ -140,18 +140,40 @@ export function Modal({ open, onClose, title, children, footer, wide, size }) {
   )
 }
 
-export function Table({ columns, rows, empty = 'Nothing to show', onRowClick, rowKey = 'id', footer, dense, maxHeight }) {
+// Columns can be sortable: give them `sort: (row) => value`. Click the header to sort; click again to flip.
+export function Table({ columns, rows, empty = 'Nothing to show', onRowClick, rowKey = 'id', footer, dense, maxHeight, defaultSort }) {
+  const [sortBy, setSortBy] = useState(defaultSort || null) // { i, dir }
+  const sorted = (() => {
+    if (!rows || !sortBy || !columns[sortBy.i]?.sort) return rows
+    const f = columns[sortBy.i].sort
+    return [...rows].sort((a, b) => {
+      const x = f(a), y = f(b)
+      if (x == null && y == null) return 0
+      if (x == null) return 1
+      if (y == null) return -1
+      const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))
+      return sortBy.dir === 'asc' ? c : -c
+    })
+  })()
+  const clickSort = (i) => setSortBy((s) => (s?.i === i ? (s.dir === 'desc' ? { i, dir: 'asc' } : null) : { i, dir: 'desc' }))
   return (
     <div className={cx('overflow-auto', maxHeight && 'relative')} style={maxHeight ? { maxHeight } : undefined}>
       <table className="min-w-full divide-y divide-stone-100">
         <thead className="sticky top-0 z-[1] bg-stone-50">
-          <tr>{columns.map((c, i) => <th key={i} className={cx('th', c.num && 'text-right', c.className)}>{c.label}</th>)}</tr>
+          <tr>{columns.map((c, i) => (
+            <th key={i} className={cx('th', c.num && 'text-right', c.className, c.sort && 'cursor-pointer select-none hover:text-stone-800')}
+              onClick={c.sort ? () => clickSort(i) : undefined} title={c.sort ? 'Click to sort' : undefined}>
+              <span className={cx('inline-flex items-center gap-1', c.num && 'flex-row-reverse')}>
+                {c.label}
+                {c.sort && (sortBy?.i === i ? (sortBy.dir === 'desc' ? <ArrowDown className="h-3 w-3 text-brand-700" /> : <ArrowUp className="h-3 w-3 text-brand-700" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />)}
+              </span>
+            </th>))}</tr>
         </thead>
         <tbody className="divide-y divide-stone-100 bg-white">
-          {(!rows || rows.length === 0) && (
+          {(!sorted || sorted.length === 0) && (
             <tr><td colSpan={columns.length} className="px-3 py-8 text-center text-sm text-stone-400">{empty}</td></tr>
           )}
-          {rows?.map((r, ri) => (
+          {sorted?.map((r, ri) => (
             <tr key={r[rowKey] ?? ri} onClick={onRowClick ? () => onRowClick(r) : undefined}
                 className={cx(onRowClick && 'cursor-pointer hover:bg-brand-50/50', r._rowClass)}>
               {columns.map((c, i) => (

@@ -59,16 +59,16 @@ export default function Inventory() {
         <Select value={filter} onChange={(e) => setFilter(e.target.value)} className="w-40 py-1.5" options={[{ value: 'all', label: 'All items' }, { value: 'low', label: 'Below ROP' }, { value: 'bo', label: 'Backordered' }, { value: 'hold', label: 'On quality hold' }]} />
       </>}>
         <Table rows={rows} onRowClick={(r) => setOpenItem(r.id)} maxHeight="65vh" columns={[
-          { label: 'Item', render: (r) => <div className="flex items-center gap-2"><img src={productImage(r)} alt="" className="h-8 w-10 rounded object-cover" /><div><div className="font-medium">{r.name}</div><div className="text-xs text-stone-500">{r.sku} · {r.uom}</div></div></div> },
-          ...locs.map((l) => ({ label: l.code, num: true, render: (r) => <span className={cx(r['loc_' + l.id] === 0 && 'text-stone-300', l.kind === 'quarantine' && r['loc_' + l.id] > 0 && 'font-semibold text-amber-700')}>{qty(r['loc_' + l.id])}</span> })),
-          { label: 'Total', num: true, render: (r) => <b>{qty(r.total)}</b> },
-          { label: 'On order', num: true, render: (r) => (Number(r.p.on_order) ? qty(r.p.on_order) : '') },
-          { label: 'ROP', num: true, render: (r) => r.p.reorder_point },
+          { label: 'Item', sort: (r) => r.name, render: (r) => <div className="flex items-center gap-2"><img src={productImage(r)} alt="" className="h-8 w-10 rounded object-cover" /><div><div className="font-medium">{r.name}</div><div className="text-xs text-stone-500">{r.sku} · {r.uom}</div></div></div> },
+          ...locs.map((l) => ({ label: l.code, num: true, sort: (r) => r['loc_' + l.id], render: (r) => <span className={cx(r['loc_' + l.id] === 0 && 'text-stone-300', l.kind === 'quarantine' && r['loc_' + l.id] > 0 && 'font-semibold text-amber-700')}>{qty(r['loc_' + l.id])}</span> })),
+          { label: 'Total', num: true, sort: (r) => r.total, render: (r) => <b>{qty(r.total)}</b> },
+          { label: 'On order', num: true, sort: (r) => Number(r.p.on_order || 0), render: (r) => (Number(r.p.on_order) ? qty(r.p.on_order) : '') },
+          { label: 'ROP', num: true, sort: (r) => Number(r.p.reorder_point || 0), render: (r) => r.p.reorder_point },
           { label: 'Status', render: (r) => r.p.backordered_qty > 0
             ? <div><Badge color="red">Backordered {qty(r.p.backordered_qty)}</Badge><div className="text-[11px] text-stone-500">ETA {fmtDate(r.p.backorder_eta)}</div></div>
             : r.p.needs_reorder ? <Badge color="amber">Reorder</Badge> : <Badge color="green">OK</Badge> },
-          { label: 'Avg cost', num: true, render: (r) => money(r.avg_cost) },
-          { label: 'Value', num: true, render: (r) => money(r.value) },
+          { label: 'Avg cost', num: true, sort: (r) => Number(r.avg_cost), render: (r) => money(r.avg_cost) },
+          { label: 'Value', num: true, sort: (r) => r.value, render: (r) => money(r.value) },
         ]} />
       </Card>
       <ItemDrawer id={openItem} onClose={() => { setOpenItem(null); if (params.get('item')) setParams({}) }} onAction={(type, item) => setAction({ type, item })} />
