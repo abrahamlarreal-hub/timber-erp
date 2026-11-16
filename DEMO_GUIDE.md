@@ -40,8 +40,12 @@ logged-in user) sees the same numbers instantly. Nothing on any report is typed 
 ### 1. Point of Sale  (Sales → Point of Sale)
 - Scan a label (or click a product) → multi-line cart → optional customer & **discount %** → Card/Cash → **receipt** (printable, has an order barcode).
 - Say: completing the sale **relieves inventory at weighted-average cost** and posts **Revenue, Discounts, Sales Tax Payable, COGS, Inventory and Cash** (show Financials → General ledger: the newest entries are your sale).
+- **Per-item discount:** click the % icon on a cart line (quick 10/15/20/25% or type any %). Item discounts and the whole-order discount both show on the receipt and post to *Sales Discounts*.
+- **Pay at pickup:** "Pay at pickup (reserve for later)" turns the cart into a pickup order for a named customer — nothing is charged and no revenue posts until they collect it (then Fulfill → Record payment & close).
 - Live proof: before/after on Inventory (the other laptop updates by itself) and Financials → P&L.
 - The checkout button is disabled if a line exceeds stock at that location — you can't sell what you don't have.
+
+- **Customer portal payment:** customers choose *Pay at pickup* or *Pay now*. A prepayment is booked as **Customer Deposits** (a liability, not revenue — the goods haven't been delivered yet); at pickup the deposit is applied and the order closes automatically; cancelling refunds it. Good accounting-concept talking point (revenue recognition).
 
 ### 2. Inventory management  (Operations → Inventory)
 - Matrix of **on-hand by item × location** (WKS, WH, STORE, QA). Click an item for barcode, per-location stock and full **transaction history** (every movement with user, cost, reason).
@@ -68,6 +72,7 @@ logged-in user) sees the same numbers instantly. Nothing on any report is typed 
 - New order: item, quantity, location, due date — shows **BOM × quantity vs. on-hand** before you commit.
 - **Start** = issue components (backflush per BOM) from inventory to **Work in Process**; records start time and rolled-up cost.
 - **Complete** = good + scrapped must equal started; reworked is a subset of good; a **quality reason code** is required for scrap/rework. Good units go to inventory at cost per unit started; scrapped units' cost goes to *Production Scrap* expense. Records finish time.
+- **Forecast & build plan tab:** forecasts demand for every product we make (including boards used inside gift sets), nets it against stock and work in progress, adds a safety buffer, rounds to batches, and checks the total against the workshop's typical weekly output (capacity). One click creates the production orders. Talking point: *make-to-stock* from the forecast vs. *make-to-order* from MRP.
 - **Production & quality report** (date range): yield, first-pass yield, scrap rate & cost, on-time completion, average cycle time, throughput/day, avg unit cost, charts by item and by reason code, and the full order list.
 
 ### 7. Purchase orders & suppliers  (Supply chain)

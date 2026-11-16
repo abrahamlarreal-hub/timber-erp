@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { ShoppingCart, Minus, Plus, Trash2, CreditCard, Banknote } from 'lucide-react'
+import { ShoppingCart, Minus, Plus, Trash2, CreditCard, Banknote, Store, Percent } from 'lucide-react'
 import { rpc } from '../lib/supabase'
 import { useItems, useLocations, useCustomers, useInventory, useSettings, useAction } from '../lib/hooks'
-import { money } from '../lib/format'
-import { Button, Card, PageHeader, Select, Input, Field, Badge, cx } from '../components/ui.jsx'
+import { money, isoDate, addDays, fmtDate } from '../lib/format'
+import { Button, Card, PageHeader, Select, Input, Field, Badge, Modal, cx } from '../components/ui.jsx'
+import { useNavigate } from 'react-router-dom'
 import { ScanInput } from '../components/Barcode.jsx'
 import { productImage } from '../lib/productArt'
 import { ReceiptModal } from '../components/Receipt.jsx'
@@ -23,6 +24,9 @@ export default function POS() {
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('')
   const [receipt, setReceipt] = useState(null)
+  const [pickup, setPickup] = useState(null) // {date}
+  const [discOpen, setDiscOpen] = useState(null) // item_id with discount editor open
+  const nav = useNavigate()
 
   const stock = (id) => Number(inv.find((r) => r.item_id === id && r.location_id === locationId)?.qty || 0)
   const sellable = items.filter((i) => i.sellable && i.active && Number(i.price) > 0)
@@ -35,17 +39,25 @@ export default function POS() {
     return [...c, { item_id: it.id, qty: 1, unit_price: Number(it.price), discount_pct: 0 }]
   })
   const setQty = (id, v) => setCart((c) => c.map((l) => (l.item_id === id ? { ...l, qty: Math.max(0, v) } : l)).filter((l) => l.qty > 0))
+  const setLineDisc = (id, v) => setCart((c) => c.map((l) => (l.item_id === id ? { ...l, discount_pct: Math.min(100, Math.max(0, Number(v) || 0)) } : l)))
+  const lineNet = (l) => l.qty * l.unit_price * (1 - Number(l.discount_pct || 0) / 100)
 
   const t = useMemo(() => {
     const sub = cart.reduce((s, l) => s + l.qty * l.unit_price, 0)
-    const d = sub * Number(disc || 0) / 100
-    const tx = Math.round((sub - d) * tax * 100) / 100
-    return { sub, d, tx, total: sub - d + tx }
+    const afterLines = cart.reduce((s, l) => s + lineNet(l), 0)
+    const lineD = sub - afterLines
+    const orderD = afterLines * Number(disc || 0) / 100
+    const net = afterLines - orderD
+    const tx = Math.round(net * tax * 100) / 100
+    return { sub, lineD, orderD, d: lineD + orderD, tx, total: net + tx }
   }, [cart, disc, tax])
 
   const checkout = useAction((method) => rpc('pos_checkout', {
     p_customer: cust ? Number(cust) : null, p_location: locationId, p_lines: cart, p_discount_pct: Number(disc || 0), p_payment_method: method,
   }), { success: 'Sale completed — inventory, revenue and COGS posted', onSuccess: (id) => { setReceipt(id); setCart([]); setDisc(0); setCust('') } })
+  const reserve = useAction(() => rpc('pos_reserve_for_pickup', {
+    p_customer: Number(cust), p_location: locationId, p_lines: cart, p_discount_pct: Number(disc || 0), p_pickup: pickup.date,
+  }), { success: 'Reserved for pickup — the customer pays when they collect it', onSuccess: (id) => { setPickup(null); setCart([]); setDisc(0); setCust(''); nav(`/sales/${id}`) } })
 
   const byId = Object.fromEntries(items.map((i) => [i.id, i]))
   const short = cart.some((l) => l.qty > stock(l.item_id))
@@ -89,7 +101,8 @@ export default function POS() {
             {cart.map((l) => {
               const it = byId[l.item_id]; const over = l.qty > stock(l.item_id)
               return (
-                <div key={l.item_id} className="flex items-center gap-2 rounded-lg border border-stone-100 p-2">
+                <div key={l.item_id}>
+                <div className="flex items-center gap-2 rounded-lg border border-stone-100 p-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2"><img src={productImage(it)} alt="" className="h-8 w-10 shrink-0 rounded object-cover" /><div className="truncate text-sm font-medium">{it?.name}</div></div>
                     <div className={cx('text-xs', over ? 'text-red-600' : 'text-stone-500')}>{money(l.unit_price)} · {stock(l.item_id)} in stock{over && ' — not enough!'}</div>
@@ -97,19 +110,34 @@ export default function POS() {
                   <Button size="sm" variant="secondary" onClick={() => setQty(l.item_id, l.qty - 1)}><Minus className="h-3 w-3" /></Button>
                   <span className="w-6 text-center text-sm tabular-nums">{l.qty}</span>
                   <Button size="sm" variant="secondary" onClick={() => setQty(l.item_id, l.qty + 1)}><Plus className="h-3 w-3" /></Button>
-                  <span className="w-20 text-right text-sm font-medium tabular-nums">{money(l.qty * l.unit_price)}</span>
+                  <div className="w-20 text-right tabular-nums">
+                    {Number(l.discount_pct) > 0 && <div className="text-[11px] text-stone-400 line-through">{money(l.qty * l.unit_price)}</div>}
+                    <div className="text-sm font-medium">{money(lineNet(l))}</div>
+                  </div>
+                  <button title="Discount this item" onClick={() => setDiscOpen(discOpen === l.item_id ? null : l.item_id)} className={cx('rounded p-1', Number(l.discount_pct) > 0 ? 'bg-amber-100 text-amber-800' : 'text-stone-400 hover:text-brand-700')}><Percent className="h-4 w-4" /></button>
                   <button onClick={() => setQty(l.item_id, 0)} className="text-stone-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                </div>
+                {(discOpen === l.item_id || Number(l.discount_pct) > 0) && (
+                  <div className="-mt-1 flex flex-wrap items-center gap-1.5 rounded-b-lg border border-t-0 border-stone-100 bg-amber-50/50 px-2 py-1.5 text-xs">
+                    <span className="text-stone-600">Item discount:</span>
+                    {[0, 10, 15, 20, 25].map((v) => (
+                      <button key={v} onClick={() => setLineDisc(l.item_id, v)} className={cx('rounded px-1.5 py-0.5', Number(l.discount_pct) === v ? 'bg-amber-600 text-white' : 'bg-white ring-1 ring-stone-200 hover:bg-amber-100')}>{v === 0 ? 'None' : `${v}%`}</button>))}
+                    <input type="number" min="0" max="100" value={l.discount_pct} onChange={(e) => setLineDisc(l.item_id, e.target.value)} className="w-14 rounded border border-stone-300 px-1 py-0.5" />%
+                    {Number(l.discount_pct) > 0 && <span className="ml-auto text-amber-800">−{money(l.qty * l.unit_price - lineNet(l))}</span>}
+                  </div>
+                )}
                 </div>
               )
             })}
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Field label="Customer (optional)"><Select placeholder="Walk-in" value={cust} onChange={(e) => setCust(e.target.value)} options={customers.map((c) => ({ value: c.id, label: c.name }))} /></Field>
-            <Field label="Discount %"><Input type="number" min="0" max="100" value={disc} onChange={(e) => setDisc(e.target.value)} /></Field>
+            <Field label="Whole-order discount %"><Input type="number" min="0" max="100" value={disc} onChange={(e) => setDisc(e.target.value)} /></Field>
           </div>
           <dl className="mt-4 space-y-1 text-sm">
             <div className="flex justify-between"><dt className="text-stone-500">Subtotal</dt><dd className="tabular-nums">{money(t.sub)}</dd></div>
-            <div className="flex justify-between"><dt className="text-stone-500">Discount</dt><dd className="tabular-nums">−{money(t.d)}</dd></div>
+            {t.lineD > 0.004 && <div className="flex justify-between"><dt className="text-stone-500">Item discounts</dt><dd className="tabular-nums">−{money(t.lineD)}</dd></div>}
+            <div className="flex justify-between"><dt className="text-stone-500">{t.lineD > 0.004 ? 'Order discount' : 'Discount'}</dt><dd className="tabular-nums">−{money(t.orderD)}</dd></div>
             <div className="flex justify-between"><dt className="text-stone-500">Sales tax ({(tax * 100).toFixed(2)}%)</dt><dd className="tabular-nums">{money(t.tx)}</dd></div>
             <div className="flex justify-between border-t border-stone-200 pt-2 text-lg font-semibold"><dt>Total</dt><dd className="tabular-nums">{money(t.total)}</dd></div>
           </dl>
@@ -117,10 +145,20 @@ export default function POS() {
           <div className="mt-4 grid grid-cols-2 gap-2">
             <Button size="lg" variant="success" disabled={!cart.length || short} loading={checkout.isPending} onClick={() => checkout.mutate('Card')}><CreditCard className="h-4 w-4" />Card</Button>
             <Button size="lg" variant="secondary" disabled={!cart.length || short} loading={checkout.isPending} onClick={() => checkout.mutate('Cash')}><Banknote className="h-4 w-4" />Cash</Button>
+            <Button className="col-span-2" variant="secondary" disabled={!cart.length} onClick={() => setPickup({ date: addDays(isoDate(), 1) })}><Store className="h-4 w-4" />Pay at pickup (reserve for later)</Button>
           </div>
         </Card>
       </div>
       <ReceiptModal id={receipt} onClose={() => setReceipt(null)} />
+      <Modal open={!!pickup} onClose={() => setPickup(null)} title="Reserve for pickup — pay later"
+        footer={<><Button variant="secondary" onClick={() => setPickup(null)}>Cancel</Button><Button disabled={!cust} loading={reserve.isPending} onClick={() => reserve.mutate()}>Reserve {money(t.total)}</Button></>}>
+        <div className="space-y-3 text-sm">
+          <p className="text-stone-600">Creates a pickup order instead of a sale. Nothing is charged now. Inventory and revenue post when the customer collects it; their payment is recorded then.</p>
+          <Field label="Customer (required)"><Select placeholder="Choose…" value={cust} onChange={(e) => setCust(e.target.value)} options={customers.map((c) => ({ value: c.id, label: c.name }))} /></Field>
+          <Field label="Pickup date"><Input type="date" min={isoDate()} value={pickup?.date || ''} onChange={(e) => setPickup({ date: e.target.value })} /></Field>
+          <p className="text-xs text-stone-500">Pickup at {locs.find((l) => l.id === locationId)?.name} on {fmtDate(pickup?.date)}. Total due at pickup {money(t.total)}.</p>
+        </div>
+      </Modal>
     </>
   )
 }

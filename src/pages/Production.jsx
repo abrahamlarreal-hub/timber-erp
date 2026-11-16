@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
 import { Factory, Plus, Play, CheckCircle2, XCircle } from 'lucide-react'
 import { supabase, sel, rpc } from '../lib/supabase'
-import { useItems, useLocations, useInventory, useReasons, useAction, useRpcQuery } from '../lib/hooks'
-import { money, qty, fmtDate, fmtDateTime, pct, isoDate, addDays, num } from '../lib/format'
-import { Button, Card, PageHeader, Table, Modal, Field, Select, Input, Badge, StatusBadge, Tabs, Stat, DateRange, Explain, Textarea } from '../components/ui.jsx'
+import { useItems, useLocations, useInventory, useReasons, useAction, useRpcQuery, usePolicy } from '../lib/hooks'
+import { forecastItem, MODELS } from '../lib/forecast'
+import { productImage } from '../lib/productArt'
+import { money, qty, fmtDate, fmtDateTime, fmtShort, pct, isoDate, addDays, num } from '../lib/format'
+import { Button, Card, PageHeader, Table, Modal, Field, Select, Input, Badge, StatusBadge, Tabs, Stat, DateRange, Explain, Textarea, Spinner } from '../components/ui.jsx'
 
 export default function Production() {
   const [tab, setTab] = useState('orders')
@@ -22,8 +24,8 @@ export default function Production() {
     <>
       <PageHeader icon={Factory} title="Production Orders" subtitle="Build finished goods and kits. Starting an order issues components per the BOM; completing it receives good units at rolled-up cost."
         actions={<Button onClick={() => setCreate(true)}><Plus className="h-4 w-4" />New production order</Button>} />
-      <Tabs value={tab} onChange={setTab} tabs={[{ value: 'orders', label: `Open orders (${open.length})` }, { value: 'history', label: 'All orders' }, { value: 'report', label: 'Production & quality report' }]} />
-      {tab === 'report' ? <ProductionReport /> : (
+      <Tabs value={tab} onChange={setTab} tabs={[{ value: 'orders', label: `Open orders (${open.length})` }, { value: 'history', label: 'All orders' }, { value: 'forecast', label: 'Forecast & build plan' }, { value: 'report', label: 'Production & quality report' }]} />
+      {tab === 'forecast' ? <ProductionForecast /> : tab === 'report' ? <ProductionReport /> : (
         <Card padded={false}>
           <Table rows={tab === 'orders' ? open : orders} columns={[
             { label: 'Order', render: (o) => <span className="font-medium">{o.number}</span> },
@@ -190,6 +192,87 @@ function ProductionReport() {
       <Explain>
         <p><b>Yield</b> = good units ÷ units started. <b>First-pass yield</b> = (good − reworked) ÷ started — units that were right the first time. <b>Scrap rate</b> = scrapped ÷ started; scrap cost = scrapped × rolled-up unit cost.</p>
         <p><b>Cycle time</b> = finish time − start time. <b>On-time</b> = finished on or before the order’s due date. All metrics are computed from the production order history for completed orders in the date range.</p>
+      </Explain>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------
+// Forecast & build plan: forecast demand for everything we make, compare
+// with stock + work already in production, and suggest what to build.
+// ---------------------------------------------------------------------
+function ProductionForecast() {
+  const items = useItems().data || []
+  const policy = usePolicy().data || []
+  const { data: hist } = useRpcQuery('weekly_usage', { p_weeks: 26 })
+  const boms = useQuery({ queryKey: ['bom_all'], queryFn: () => sel(supabase.from('bom_lines').select('parent_item_id')) }).data || []
+  const cap = useRpcQuery('production_report', { p_from: addDays(isoDate(), -56), p_to: addDays(isoDate(), -1) }).data
+  const [horizon, setHorizon] = useState(4)
+  const [buffer, setBuffer] = useState(1)
+  const [picked, setPicked] = useState({})
+  const made = items.filter((i) => boms.some((b) => b.parent_item_id === i.id))
+
+  const rows = useMemo(() => {
+    if (!hist?.items) return []
+    return made.map((it) => {
+      const h = hist.items.find((x) => x.item_id === it.id)
+      const y = (h?.used || []).map(Number) // sales + use inside kits (e.g. boards in gift sets)
+      const f = forecastItem(y, { method: 'auto', horizon, params: { n: 4, alpha: 0.3, beta: 0.1 } })
+      const p = policy.find((x) => x.item_id === it.id) || {}
+      const onHand = Number(p.on_hand || 0), inProd = Number(p.on_order || 0), orders = Number(p.allocated || 0)
+      const demand = Math.max(f.total, orders)            // forecast, but never less than confirmed orders
+      const safety = f.weekly * buffer                    // keep N weeks of cover after the horizon
+      const need = demand + safety - (onHand + inProd)
+      const batch = it.sku.startsWith('TTC-BB') ? 10 : 5
+      const build = need > 0 ? Math.ceil(need / batch) * batch : 0
+      return { ...it, f, onHand, inProd, orders, demand, safety, need, build,
+        cover: f.weekly > 0 ? (onHand + inProd) / f.weekly : null }
+    }).sort((a, b) => b.build - a.build || a.cover - b.cover)
+  }, [hist, made.length, policy, horizon, buffer]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const buildKey = rows.map((r) => `${r.id}:${r.build}`).join(',')
+  useEffect(() => { setPicked(Object.fromEntries(rows.filter((r) => r.build > 0).map((r) => [r.id, true]))) }, [buildKey])
+  const capacity = cap?.metrics?.units_good ? Number(cap.metrics.units_good) / 8 : null // good units per week, last 8 weeks
+  const planned = rows.filter((r) => picked[r.id]).reduce((s, r) => s + r.build, 0)
+  const util = capacity ? (planned / (capacity * horizon)) * 100 : null
+  const create = useAction(() => rpc('create_suggested_orders', {
+    p_lines: rows.filter((r) => picked[r.id] && r.build > 0).map((r) => ({ item_id: r.id, qty: r.build, need_date: addDays(isoDate(), Math.max(3, r.lead_time_days + 2)) })),
+    p_source: 'Production forecast',
+  }), { success: (r) => `Created ${r.production_orders.join(', ') || 'no orders'}` })
+  const weeks = Array.from({ length: Math.min(horizon, 4) }, (_, i) => addDays(hist?.today || isoDate(), 7 * i))
+
+  if (!hist) return <Spinner label="Forecasting demand…" />
+  return (
+    <div className="space-y-5">
+      <Card>
+        <div className="flex flex-wrap items-end gap-4">
+          <Field label="Plan horizon"><Select value={horizon} onChange={(e) => setHorizon(Number(e.target.value))} className="w-36" options={[2, 4, 6, 8].map((w) => ({ value: w, label: `${w} weeks` }))} /></Field>
+          <Field label="Safety buffer"><Select value={buffer} onChange={(e) => setBuffer(Number(e.target.value))} className="w-40" options={[0, 1, 2].map((w) => ({ value: w, label: w ? `${w} week${w > 1 ? 's' : ''} of cover` : 'None' }))} /></Field>
+          <div className="ml-auto"><Button disabled={!rows.some((r) => picked[r.id] && r.build > 0)} loading={create.isPending} onClick={() => create.mutate()}><Plus className="h-4 w-4" />Create production orders for selected</Button></div>
+        </div>
+      </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat label={`Forecast demand (${horizon} wks)`} value={num(rows.reduce((s, r) => s + r.demand, 0))} sub="units of everything we make" />
+        <Stat label="Suggested builds" value={num(planned)} sub={`${rows.filter((r) => picked[r.id] && r.build > 0).length} products`} />
+        <Stat label="Typical output" value={capacity ? `${num(capacity, 0)}/wk` : '—'} sub="good units, last 8 weeks" />
+        <Stat label="Workshop load" value={util == null ? '—' : `${num(util, 0)}%`} tone={util > 100 ? 'bad' : util > 85 ? 'warn' : 'good'} sub={util > 100 ? 'over typical capacity — start early or add shifts' : 'of typical capacity'} />
+      </div>
+      <Card padded={false} title="Build plan by product" subtitle="Suggested build = forecast demand (or confirmed orders, if higher) + safety buffer − on hand − already in production, rounded to a batch">
+        <Table rows={rows} columns={[
+          { label: '', render: (r) => r.build > 0 && <input type="checkbox" checked={!!picked[r.id]} onChange={(e) => setPicked({ ...picked, [r.id]: e.target.checked })} /> },
+          { label: 'Product', render: (r) => <div className="flex items-center gap-2"><img src={productImage(r)} alt="" className="h-8 w-10 rounded object-cover" /><div><div className="max-w-[180px] truncate font-medium">{r.name}</div><div className="text-xs text-stone-500">{MODELS[r.f.method].short} · accuracy {r.f.accuracy == null ? '—' : num(r.f.accuracy, 0) + '%'}</div></div></div> },
+          ...weeks.map((w, i) => ({ label: fmtShort(w), num: true, render: (r) => <span className="text-stone-500">{num(r.f.forecast[i], 0)}</span> })),
+          { label: `Forecast ${horizon}w`, num: true, render: (r) => num(r.f.total, 0) },
+          { label: 'Orders', num: true, render: (r) => (r.orders ? num(r.orders, 0) : '') },
+          { label: 'On hand + WIP', num: true, render: (r) => <span>{num(r.onHand, 0)}{r.inProd ? <span className="text-stone-500"> + {num(r.inProd, 0)}</span> : ''}</span> },
+          { label: 'Cover', num: true, render: (r) => (r.cover == null ? '—' : <span className={r.cover < horizon ? 'font-semibold text-red-600' : ''}>{num(r.cover, 1)}w</span>) },
+          { label: 'Build', num: true, render: (r) => (r.build > 0 ? <b className="text-brand-800">{num(r.build)}</b> : <Badge color="green">Covered</Badge>) },
+        ]} />
+      </Card>
+      <Explain title="How the build plan works">
+        <p><b>Forecast:</b> weekly usage of each made item over 26 weeks (customer sales plus use inside kits — e.g. maple boards that go into gift sets) is forecast with the most accurate of moving average, exponential smoothing and trend, as on the Demand Forecast page.</p>
+        <p><b>Netting:</b> demand for the horizon (or confirmed orders, whichever is larger) + a safety buffer of N weeks − on hand − units already planned or in progress = units to build, rounded up to a batch (5, or 10 for board butter).</p>
+        <p><b>Capacity check:</b> compares the suggested builds with the workshop's typical good output per week over the last 8 weeks. This is make-to-stock planning from the forecast; MRP covers confirmed customer orders and the components they need.</p>
       </Explain>
     </div>
   )

@@ -60,6 +60,7 @@ export default function SalesOrderDetail() {
         </Card>
         <Card title="Summary">
           <dl className="space-y-1.5 text-sm">
+            {o.source !== 'POS' && <div className="mb-2 flex justify-between"><dt className="text-stone-500">Payment</dt><dd>{Number(o.prepaid_amount) > 0 ? <Badge color="green">Prepaid online {money(o.prepaid_amount)}</Badge> : o.status === 'Closed' ? <Badge color="green">Paid — {o.payment_method}</Badge> : o.status === 'Cancelled' ? '—' : <Badge color="amber">{o.payment_method === 'Pay at pickup' ? 'Pay at pickup' : 'Due on invoice'} {money(o.total)}</Badge>}</dd></div>}
             {[['Ordered', fmtDateTime(o.order_date)], ['Requested / due', fmtDate(o.due_date)], ['Fulfilled', fmtDateTime(o.fulfilled_at)], ['Closed', fmtDateTime(o.closed_at)], ['Entered by', o.created_by_name]].map(([k, v]) => (
               <div key={k} className="flex justify-between"><dt className="text-stone-500">{k}</dt><dd>{v}</dd></div>))}
             <div className="my-2 border-t" />
