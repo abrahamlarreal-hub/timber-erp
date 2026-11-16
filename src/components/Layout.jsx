@@ -74,6 +74,9 @@ export default function Layout({ children }) {
               ))}
             </div>
           ))}
+          <button onClick={async () => { await signOut(); nav('/') }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-brand-200 hover:bg-brand-800 hover:text-white">
+            <LogOut className="h-4 w-4" />Sign out / switch user
+          </button>
         </nav>
       </aside>
       {open && <div className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setOpen(false)} />}
@@ -90,7 +93,7 @@ export default function Layout({ children }) {
             <div className="text-sm font-medium">{profile?.full_name || profile?.email}</div>
             <div className="text-[11px] uppercase tracking-wide text-stone-500">{profile?.role}</div>
           </div>
-          <button onClick={async () => { await signOut(); nav('/') }} className="rounded-lg p-2 text-stone-500 hover:bg-stone-100" title="Sign out"><LogOut className="h-4 w-4" /></button>
+          <button onClick={async () => { await signOut(); nav('/') }} className="flex items-center gap-1.5 rounded-lg border border-stone-200 px-2.5 py-1.5 text-sm text-stone-700 hover:bg-stone-100" title="Sign out / switch user"><LogOut className="h-4 w-4" /><span className="hidden sm:inline">Sign out</span></button>
         </div>
       </header>
       <main className="mx-auto max-w-[1400px] p-4 pb-24 sm:p-6 sm:pb-24">{children}</main>

@@ -22,7 +22,7 @@ export default function Portal() {
           <div className="ml-auto flex items-center gap-3">
             <span className={cx('hidden text-xs sm:inline', status === 'live' ? 'text-emerald-600' : 'text-stone-400')}>● live stock</span>
             <span className="text-sm">Hi, {profile.full_name?.split(' ')[0]}</span>
-            <button onClick={signOut} className="rounded-lg p-2 text-stone-500 hover:bg-stone-100"><LogOut className="h-4 w-4" /></button>
+            <button onClick={signOut} className="flex items-center gap-1.5 rounded-lg border border-stone-200 px-2.5 py-1.5 text-sm text-stone-700 hover:bg-stone-100" title="Sign out"><LogOut className="h-4 w-4" /><span className="hidden sm:inline">Sign out</span></button>
           </div>
         </div>
       </header>
