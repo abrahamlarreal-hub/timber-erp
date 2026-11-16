@@ -49,7 +49,14 @@ Deploy (so everyone — and phone cameras — can use it over HTTPS):
 Teammates can create their own logins on the sign-in page: employee code **TIMBER-STAFF** (or **TIMBER-MGR**
 for a manager); leave the code blank to create a customer account. Codes are editable under Settings.
 
-## 4. Barcodes
+## 4. Ask Timber assistant (optional AI mode)
+
+The **Ask Timber** button (bottom-right) has two modes. *Quick answers* work out of the box. To switch on *Ask AI* (Claude Opus 5.5):
+1. <https://console.anthropic.com> → Billing → add credits (roughly 5–10¢ per question; set a monthly spend limit) → API keys → Create key.
+2. Supabase → **Edge Functions** → Deploy a new function → *Via editor* → name it `ask-timber` → paste `supabase/functions/ask-timber/index.ts` → turn **off** "Verify JWT" (the function verifies the employee itself) → Deploy.
+3. Supabase → Edge Functions → **Secrets** → add `ANTHROPIC_API_KEY` = your key.
+
+## 5. Barcodes
 
 **Barcode Labels** page → choose items → **Print**. Labels are Code 128 and scan with:
 - a USB/Bluetooth scanner (acts like a keyboard — click the scan box and scan), or
@@ -57,7 +64,7 @@ for a manager); leave the code blank to create a customer account. Codes are edi
 
 Receipts also print a barcode of the order number — scan it on **Returns** to pull up the sale.
 
-## 5. Project layout
+## 6. Project layout
 
 ```
 supabase/migrations/   schema, business logic (PL/pgSQL), analytics/MRP, security/realtime

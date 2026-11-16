@@ -5,6 +5,9 @@ export default defineConfig({
   plugins: [react()],
   build: { chunkSizeWarningLimit: 2000 },
   server: {
-    proxy: Object.fromEntries(['/rest/v1', '/auth/v1', '/realtime/v1', '/storage/v1'].map((p) => [p, { target: 'http://127.0.0.1:54321', changeOrigin: true, ws: true }])),
+    proxy: {
+      ...Object.fromEntries(['/rest/v1', '/auth/v1', '/realtime/v1', '/storage/v1'].map((p) => [p, { target: 'http://127.0.0.1:54321', changeOrigin: true, ws: true }])),
+      '/functions/v1': { target: process.env.FUNCTIONS_TARGET || 'http://127.0.0.1:54321', changeOrigin: true },
+    },
   },
 })

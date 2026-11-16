@@ -111,6 +111,11 @@ Sales by day/week/month with gross profit, top sellers, low stock with suggested
 - **Stockout risk:** days of cover = on hand ÷ forecast daily demand; shorter than lead time → "Order now".
 - Live test: drag the α slider or switch methods and the forecasts and accuracy recalculate. Say: *"Forecasting drives independent demand; MRP turns it into dependent demand for components."*
 
+## Ask Timber assistant (button bottom-right)
+- **Quick answers (free, rule-based):** preset manager questions answered instantly from live data with fixed rules; reorder and MRP answers come with an **Approve & create** card.
+- **Ask AI (Claude Opus 5.5):** any question in plain English. Claude calls read-only tools (inventory, MRP, suppliers, P&L, cash, sales, production) and can only *propose* orders — a person approves. Good demo prompts: *"Plan purchasing and production for all confirmed orders"*, *"Why is the gift set backordered?"*, *"Can we afford what MRP suggests?"*
+- Talking point — **rules vs. AI**: quick answers are predictable and free but only cover known questions; the AI reasons across modules for new questions, costs a few cents, and is kept safe by read-only tools + human approval (the same "human in the loop" control real ERPs use).
+
 ## Wow factors
 1. **Action Center** — an auto-prioritized to-do list built from live data across every module (backorders, late POs, items below ROP, bills due, quality holds, orders due), each clickable.
 2. **One-click plan → execution** — MRP and replenishment suggestions become real POs (grouped by supplier) and production orders.

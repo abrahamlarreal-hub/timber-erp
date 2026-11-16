@@ -215,7 +215,7 @@ export function ToastProvider({ children }) {
   return (
     <ToastCtx.Provider value={api}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[60] flex w-80 flex-col gap-2 no-print">
+      <div className="fixed bottom-20 right-4 z-[60] flex w-80 flex-col gap-2 no-print">
         {toasts.map((t) => (
           <div key={t.id} className={cx('flex items-start gap-2 rounded-xl border px-3 py-2.5 text-sm shadow-lg',
             t.kind === 'success' && 'border-emerald-200 bg-emerald-50 text-emerald-900',

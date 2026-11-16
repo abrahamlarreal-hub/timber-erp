@@ -1,4 +1,4 @@
-import { Info, Database, Bot, Code2, Radio, ScanLine, ShieldCheck, GitBranch } from 'lucide-react'
+import { Info, Database, Bot, Code2, Radio, ScanLine, ShieldCheck, GitBranch, Sparkles } from 'lucide-react'
 import { Card, PageHeader } from '../components/ui.jsx'
 
 const Row = ({ icon: Icon, title, children }) => (
@@ -31,6 +31,17 @@ export default function About() {
             <li><b>Financials</b> (P&amp;L, valuation, turnover) are computed on demand from the ledger — nothing is typed in.</li>
             <li><b>Cash-flow forecast</b> ties it together: open invoices (sales), supplier bills and open POs (purchasing), payroll and rent (finance) project the bank balance 8 weeks out.</li>
           </ol>
+        </Card>
+        <Card title="Ask Timber assistant (two modes)" className="lg:col-span-2">
+          <div className="grid gap-4 text-sm text-stone-700 md:grid-cols-2">
+            <Row icon={Sparkles} title="Quick answers — rule-based, free">Nine preset manager questions (what to reorder, MRP buys/builds, late POs, backorders, supplier risk, sales vs last month, cash outlook, production quality). Each answer is computed instantly from the database with fixed rules — no AI involved — and reorder/MRP answers can be turned into orders with one approval.</Row>
+            <Row icon={Bot} title="Ask AI — Claude Opus 5.5 (Anthropic API)">Free-form questions. A Supabase Edge Function (<code>ask-timber</code>) holds the API key and gives Claude 12 read-only tools (overview, inventory policy, stock by location, MRP, supplier scorecard, open POs/SOs, P&amp;L + turnover, cash forecast, sales report, demand history, production) plus <code>propose_orders</code>. Tools run with the signed-in employee's permissions; proposals are only created when a person clicks Approve. Customers can't use it.</Row>
+          </div>
+          <div className="mt-4 rounded-lg bg-stone-50 p-3 text-xs text-stone-600">
+            <b>Turn on AI mode:</b> (1) console.anthropic.com → Billing → add credits (≈5–10¢ per question) and set a monthly limit → API keys → create key.
+            (2) Supabase → Edge Functions → Deploy a new function → name <code>ask-timber</code> → paste <code>supabase/functions/ask-timber/index.ts</code> → turn off "Verify JWT" (the function checks the employee itself) → Deploy.
+            (3) Edge Functions → Secrets → add <code>ANTHROPIC_API_KEY</code>. Until then, Ask AI says it isn't switched on and Quick answers keep working.
+          </div>
         </Card>
         <Card title="How we verified it">
           <ul className="list-disc space-y-1.5 pl-5 text-sm text-stone-700">

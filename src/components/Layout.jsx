@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../lib/auth.jsx'
 import { useRealtimeSync } from '../lib/realtime.js'
 import { useToast, cx } from './ui.jsx'
+import Assistant from './Assistant.jsx'
 
 const NAV = [
   { group: 'Overview', items: [{ to: '/', label: 'Action Center', icon: LayoutDashboard, end: true }] },
@@ -92,7 +93,8 @@ export default function Layout({ children }) {
           <button onClick={async () => { await signOut(); nav('/') }} className="rounded-lg p-2 text-stone-500 hover:bg-stone-100" title="Sign out"><LogOut className="h-4 w-4" /></button>
         </div>
       </header>
-      <main className="mx-auto max-w-[1400px] p-4 sm:p-6">{children}</main>
+      <main className="mx-auto max-w-[1400px] p-4 pb-24 sm:p-6 sm:pb-24">{children}</main>
+      <Assistant />
     </div>
   )
 }
