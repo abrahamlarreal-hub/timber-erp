@@ -8,6 +8,9 @@ import { useNavigate } from 'react-router-dom'
 import { ScanInput } from '../components/Barcode.jsx'
 import { productImage } from '../lib/productArt'
 import { ReceiptModal } from '../components/Receipt.jsx'
+import PickupCheckout from '../components/PickupCheckout.jsx'
+import { useQuery } from '@tanstack/react-query'
+import { supabase, sel } from '../lib/supabase'
 
 export default function POS() {
   const items = useItems().data || []
@@ -27,6 +30,14 @@ export default function POS() {
   const [pickup, setPickup] = useState(null) // {date}
   const [discOpen, setDiscOpen] = useState(null) // item_id with discount editor open
   const nav = useNavigate()
+  const [pickList, setPickList] = useState(false)
+  const [pickOrder, setPickOrder] = useState(null)
+  const pickups = useQuery({
+    enabled: !!locationId, queryKey: ['pickups', locationId],
+    queryFn: () => sel(supabase.from('sales_orders').select('id, number, due_date, total, prepaid_amount, payment_method, source, customer:customers(name), lines:sales_order_lines(qty, item:items(name))')
+      .eq('status', 'Placed').eq('location_id', locationId).or('source.eq.WEB,payment_method.eq."Pay at pickup",prepaid_amount.gt.0').order('due_date')),
+  }).data || []
+  const [pq, setPq] = useState('')
 
   const stock = (id) => Number(inv.find((r) => r.item_id === id && r.location_id === locationId)?.qty || 0)
   const sellable = items.filter((i) => i.sellable && i.active && Number(i.price) > 0)
@@ -64,7 +75,7 @@ export default function POS() {
   return (
     <>
       <PageHeader icon={ShoppingCart} title="Point of Sale" subtitle="Scan or tap products. Completing a sale reduces inventory and records revenue and cost of goods sold."
-        actions={<Select value={loc || retail?.id || ''} onChange={(e) => setLoc(e.target.value)} options={locs.filter((l) => l.kind !== 'quarantine').map((l) => ({ value: l.id, label: l.name }))} className="w-60" />} />
+        actions={<><Button variant="secondary" onClick={() => setPickList(true)}><Store className="h-4 w-4" />Pickups waiting <Badge color={pickups.length ? 'amber' : 'gray'}>{pickups.length}</Badge></Button><Select value={loc || retail?.id || ''} onChange={(e) => setLoc(e.target.value)} options={locs.filter((l) => l.kind !== 'quarantine').map((l) => ({ value: l.id, label: l.name }))} className="w-60" /></>} />
       <div className="grid gap-5 lg:grid-cols-5">
         <div className="space-y-3 lg:col-span-3">
           <ScanInput items={sellable} onItem={add} autoFocus continuous captureGlobal placeholder="Scan barcode (USB scanner or camera) or type SKU + Enter" />
@@ -150,6 +161,19 @@ export default function POS() {
         </Card>
       </div>
       <ReceiptModal id={receipt} onClose={() => setReceipt(null)} />
+      <Modal open={pickList} onClose={() => setPickList(false)} title={`Pickups waiting at ${locs.find((l) => l.id === locationId)?.name || ''}`} wide>
+        <Input placeholder="Search customer or order number…" value={pq} onChange={(e) => setPq(e.target.value)} className="mb-3" autoFocus />
+        {pickups.filter((o) => !pq || `${o.number} ${o.customer?.name}`.toLowerCase().includes(pq.toLowerCase())).map((o) => (
+          <button key={o.id} onClick={() => { setPickList(false); setPickOrder(o.id) }} className="mb-2 flex w-full items-center gap-3 rounded-lg border border-stone-200 p-3 text-left hover:border-brand-400 hover:bg-brand-50">
+            <div className="flex-1">
+              <div className="font-medium">{o.customer?.name} <span className="text-xs text-stone-500">· {o.number} · for {fmtDate(o.due_date)}</span></div>
+              <div className="text-xs text-stone-500">{o.lines.map((l) => `${Number(l.qty)}× ${l.item.name}`).join(', ')}</div>
+            </div>
+            {Number(o.prepaid_amount) > 0 ? <Badge color="green">Paid online</Badge> : <Badge color="amber">Due {money(o.total)}</Badge>}
+          </button>))}
+        {pickups.length === 0 && <p className="py-6 text-center text-sm text-stone-400">No pickup orders waiting at this location.</p>}
+      </Modal>
+      {pickOrder && <PickupCheckout orderId={pickOrder} onClose={() => setPickOrder(null)} />}
       <Modal open={!!pickup} onClose={() => setPickup(null)} title="Reserve for pickup — pay later"
         footer={<><Button variant="secondary" onClick={() => setPickup(null)}>Cancel</Button><Button disabled={!cust} loading={reserve.isPending} onClick={() => reserve.mutate()}>Reserve {money(t.total)}</Button></>}>
         <div className="space-y-3 text-sm">

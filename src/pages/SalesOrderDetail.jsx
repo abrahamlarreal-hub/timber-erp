@@ -7,6 +7,7 @@ import { useInventory, useAction } from '../lib/hooks'
 import { money, fmtDate, fmtDateTime, qty, pct } from '../lib/format'
 import { Button, Card, PageHeader, Table, StatusBadge, Spinner, Badge } from '../components/ui.jsx'
 import { useOrder, ReceiptModal } from '../components/Receipt.jsx'
+import PickupCheckout from '../components/PickupCheckout.jsx'
 
 export default function SalesOrderDetail() {
   const { id } = useParams()
@@ -14,6 +15,7 @@ export default function SalesOrderDetail() {
   const { data: o, isLoading } = useOrder(Number(id))
   const inv = useInventory().data || []
   const [receipt, setReceipt] = useState(null)
+  const [checkout, setCheckout] = useState(false)
   const returns = useQuery({ enabled: !!o, queryKey: ['returns_for', id], queryFn: () => sel(supabase.from('returns').select('*, lines:return_lines(*, item:items(name))').eq('sales_order_id', id)) })
   const shortLines = (o?.status === 'Placed' ? o.lines : []).filter((l) => Number(inv.find((r) => r.item_id === l.item_id && r.location_id === o.location_id)?.qty || 0) < Number(l.qty))
   const etas = useQuery({
@@ -34,7 +36,8 @@ export default function SalesOrderDetail() {
       <PageHeader title={<span className="flex items-center gap-3">{o.number} <StatusBadge status={o.status} /></span>}
         subtitle={`${o.customer?.name || 'Walk-in customer'} · ${o.location?.name} · ${o.source === 'WEB' ? 'Customer portal pickup order' : o.source}`}
         actions={<>
-          {o.status === 'Placed' && shortLines.length === 0 && <Button variant="success" loading={fulfill.isPending} onClick={() => fulfill.mutate()}><PackageCheck className="h-4 w-4" />Fulfill (ship / pick up)</Button>}
+          {o.status === 'Placed' && (o.source === 'WEB' || o.payment_method === 'Pay at pickup' || Number(o.prepaid_amount) > 0) && <Button variant="success" onClick={() => setCheckout(true)}><PackageCheck className="h-4 w-4" />Customer is here — check out pickup</Button>}
+          {o.status === 'Placed' && shortLines.length === 0 && <Button variant={(o.source === 'WEB' || o.payment_method === 'Pay at pickup' || Number(o.prepaid_amount) > 0) ? 'secondary' : 'success'} loading={fulfill.isPending} onClick={() => fulfill.mutate()}><PackageCheck className="h-4 w-4" />Fulfill (ship / pick up)</Button>}
           {o.status === 'Placed' && shortLines.length > 0 && <Button variant="success" loading={shipPartial.isPending} onClick={() => shipPartial.mutate()}><Split className="h-4 w-4" />Ship available, backorder rest</Button>}
           {o.status === 'Fulfilled' && <Button variant="success" loading={close.isPending} onClick={() => close.mutate()}><CheckCircle2 className="h-4 w-4" />Record payment & close</Button>}
           {o.status === 'Placed' && <Button variant="secondary" loading={cancel.isPending} onClick={() => confirm('Cancel this order?') && cancel.mutate()}><XCircle className="h-4 w-4" />Cancel</Button>}
@@ -87,6 +90,7 @@ export default function SalesOrderDetail() {
         </Card>
       )}
       <ReceiptModal id={receipt} onClose={() => setReceipt(null)} />
+      {checkout && <PickupCheckout orderId={o.id} onClose={() => setCheckout(false)} />}
     </>
   )
 }

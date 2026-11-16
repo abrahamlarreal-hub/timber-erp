@@ -45,6 +45,7 @@ logged-in user) sees the same numbers instantly. Nothing on any report is typed 
 - Live proof: before/after on Inventory (the other laptop updates by itself) and Financials → P&L.
 - The checkout button is disabled if a line exceeds stock at that location — you can't sell what you don't have.
 
+- **Pickup checkout:** when the customer arrives, POS → **Pickups waiting** (or the order's **Customer is here — check out pickup** button) → adjust item / order discounts → **Card** or **Cash** → receipt. Inventory, revenue, COGS and payment all post in one step; prepaid orders just get **Hand over order**.
 - **Customer portal payment:** customers choose *Pay at pickup* or *Pay now*. A prepayment is booked as **Customer Deposits** (a liability, not revenue — the goods haven't been delivered yet); at pickup the deposit is applied and the order closes automatically; cancelling refunds it. Good accounting-concept talking point (revenue recognition).
 
 ### 2. Inventory management  (Operations → Inventory)

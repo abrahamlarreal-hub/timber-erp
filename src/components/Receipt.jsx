@@ -10,7 +10,7 @@ export function useOrder(id) {
     enabled: !!id,
     queryKey: ['order', id],
     queryFn: async () => {
-      const o = await sel(supabase.from('sales_orders').select('*, customer:customers(*), location:locations(*), lines:sales_order_lines(*, item:items(sku,name,barcode,uom))').eq('id', id).single())
+      const o = await sel(supabase.from('sales_orders').select('*, customer:customers(*), location:locations(*), lines:sales_order_lines(*, item:items(sku,name,barcode,uom,category,image_url))').eq('id', id).single())
       o.lines.sort((a, b) => a.id - b.id)
       return o
     },
