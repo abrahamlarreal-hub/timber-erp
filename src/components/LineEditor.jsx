@@ -2,6 +2,7 @@ import { Trash2 } from 'lucide-react'
 import { Input, Select, Button } from './ui.jsx'
 import { ScanInput } from './Barcode.jsx'
 import { money } from '../lib/format'
+import { productImage } from '../lib/productArt'
 
 // Generic order-line editor used by Sales Orders and Purchase Orders.
 // lines: [{item_id, qty, unit_price|unit_cost, discount_pct}]
@@ -17,8 +18,14 @@ export default function LineEditor({ items, lines, setLines, priceField = 'unit_
   return (
     <div className="space-y-3">
       <div className="grid gap-2 sm:grid-cols-2">
-        <Select placeholder="+ Add item…" value="" onChange={(e) => e.target.value && add(byId[e.target.value])}
-          options={choices.map((i) => ({ value: i.id, label: `${i.sku} — ${i.name}` }))} />
+        <select className="input" value="" onChange={(e) => e.target.value && add(byId[e.target.value])}>
+          <option value="">+ Add item…</option>
+          {[...new Set(choices.map((i) => i.category))].sort().map((c) => (
+            <optgroup key={c} label={c}>
+              {choices.filter((i) => i.category === c).map((i) => <option key={i.id} value={i.id}>{i.name} ({i.sku})</option>)}
+            </optgroup>
+          ))}
+        </select>
         <ScanInput items={choices} onItem={add} continuous placeholder="…or scan barcode" />
       </div>
       <div className="overflow-x-auto rounded-lg border border-stone-200">
@@ -36,7 +43,7 @@ export default function LineEditor({ items, lines, setLines, priceField = 'unit_
               const avail = stockFor?.(l.item_id)
               return (
                 <tr key={i}>
-                  <td className="td"><div className="font-medium">{it?.name}</div><div className="text-xs text-stone-500">{it?.sku} · {it?.uom}</div></td>
+                  <td className="td"><div className="flex items-center gap-2"><img src={productImage(it)} alt="" className="h-8 w-10 rounded object-cover" /><div><div className="font-medium">{it?.name}</div><div className="text-xs text-stone-500">{it?.sku} · {it?.uom}</div></div></div></td>
                   {stockFor && <td className={`td num ${avail < Number(l.qty) ? 'font-semibold text-red-600' : 'text-stone-500'}`}>{avail ?? '—'}</td>}
                   <td className="td"><Input type="number" min="0" step="any" value={l.qty} onChange={(e) => upd(i, 'qty', e.target.value)} className="py-1" /></td>
                   <td className="td"><Input type="number" min="0" step="0.01" value={l[priceField]} onChange={(e) => upd(i, priceField, e.target.value)} className="py-1" /></td>

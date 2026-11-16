@@ -19,6 +19,7 @@ import Purchasing from './pages/Purchasing.jsx'
 import PurchaseOrderDetail from './pages/PurchaseOrderDetail.jsx'
 import Suppliers from './pages/Suppliers.jsx'
 import Replenishment from './pages/Replenishment.jsx'
+import Forecast from './pages/Forecast.jsx'
 import Financials from './pages/Financials.jsx'
 import Reports from './pages/Reports.jsx'
 import SettingsPage from './pages/Settings.jsx'
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/purchasing/:id" element={<PurchaseOrderDetail />} />
         <Route path="/suppliers" element={<Suppliers />} />
         <Route path="/replenishment" element={<Replenishment />} />
+        <Route path="/forecast" element={<Forecast />} />
         <Route path="/financials" element={<Financials />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<SettingsPage />} />

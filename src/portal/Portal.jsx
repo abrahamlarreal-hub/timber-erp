@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth.jsx'
 import { useRealtimeSync } from '../lib/realtime.js'
 import { useAction, useLocations, useSettings } from '../lib/hooks'
 import { money, fmtDate, isoDate, addDays, qty } from '../lib/format'
+import { productImage } from '../lib/productArt'
 import { Button, Card, Badge, StatusBadge, Tabs, Select, Input, Field, Table, Spinner, Modal, cx } from '../components/ui.jsx'
 
 export default function Portal() {
@@ -39,13 +40,15 @@ function Shop({ onOrdered }) {
   const tax = Number(useSettings().data?.map.tax_rate || 0.0725)
   const [cart, setCart] = useState({})
   const [q, setQ] = useState('')
+  const [cat, setCat] = useState('')
   const [pickup, setPickup] = useState({ loc: '', date: addDays(isoDate(), 1) })
   const [done, setDone] = useState(null)
   const place = useAction(() => rpc('place_customer_order', {
     p_location: Number(pickup.loc || locs[locs.length - 1]?.id), p_pickup: pickup.date,
     p_lines: Object.entries(cart).filter(([, n]) => n > 0).map(([id, n]) => ({ item_id: Number(id), qty: n })),
   }), { onSuccess: (id) => { setCart({}); setDone(id) } })
-  const items = (catalog || []).filter((i) => !q || (i.name + i.category).toLowerCase().includes(q.toLowerCase()))
+  const items = (catalog || []).filter((i) => (!q || (i.name + i.category).toLowerCase().includes(q.toLowerCase())) && (!cat || i.category === cat))
+  const cats = [...new Set((catalog || []).map((i) => i.category))].sort()
   const byId = useMemo(() => Object.fromEntries((catalog || []).map((i) => [i.id, i])), [catalog])
   const lines = Object.entries(cart).filter(([, n]) => n > 0)
   const sub = lines.reduce((s, [id, n]) => s + n * Number(byId[id]?.price || 0), 0)
@@ -54,13 +57,19 @@ function Shop({ onOrdered }) {
   return (
     <div className="grid gap-5 lg:grid-cols-3">
       <div className="lg:col-span-2">
-        <div className="relative mb-3"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" /><Input className="pl-9" placeholder="Search products…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <div className="mb-3 flex gap-2">
+          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" /><Input className="pl-9" placeholder="Search products…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+          <Select className="w-48" value={cat} onChange={(e) => setCat(e.target.value)} placeholder="All categories" options={cats.map((c) => ({ value: c, label: c }))} />
+        </div>
+        {cats.filter((c) => items.some((i) => i.category === c)).map((c) => (<div key={c} className="mb-5">
+        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-stone-500">{c}</h3>
         <div className="grid gap-3 sm:grid-cols-2">
-          {items.map((it) => {
+          {items.filter((i) => i.category === c).map((it) => {
             const n = cart[it.id] || 0
             return (
-              <div key={it.id} className="flex flex-col rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-                <div className="text-xs uppercase tracking-wide text-stone-500">{it.category}</div>
+              <div key={it.id} className="flex flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+                <img src={productImage(it)} alt={it.name} className="h-40 w-full object-cover" />
+                <div className="flex flex-1 flex-col p-4">
                 <div className="font-semibold">{it.name}</div>
                 <div className="mt-1 flex-1 text-sm text-stone-600">{it.description}</div>
                 <div className="mt-3 space-y-1">
@@ -83,10 +92,12 @@ function Shop({ onOrdered }) {
                     </div>
                   )}
                 </div>
+                </div>
               </div>
             )
           })}
         </div>
+        </div>))}
       </div>
       <Card className="self-start lg:sticky lg:top-4" title={<span className="flex items-center gap-2"><ShoppingBag className="h-4 w-4" />Pickup order</span>}>
         {lines.length === 0 ? <p className="py-6 text-center text-sm text-stone-400">Your bag is empty.</p> : (

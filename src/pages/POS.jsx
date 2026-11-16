@@ -5,6 +5,7 @@ import { useItems, useLocations, useCustomers, useInventory, useSettings, useAct
 import { money } from '../lib/format'
 import { Button, Card, PageHeader, Select, Input, Field, Badge, cx } from '../components/ui.jsx'
 import { ScanInput } from '../components/Barcode.jsx'
+import { productImage } from '../lib/productArt'
 import { ReceiptModal } from '../components/Receipt.jsx'
 
 export default function POS() {
@@ -20,11 +21,14 @@ export default function POS() {
   const [disc, setDisc] = useState(0)
   const [cust, setCust] = useState('')
   const [q, setQ] = useState('')
+  const [cat, setCat] = useState('')
   const [receipt, setReceipt] = useState(null)
 
   const stock = (id) => Number(inv.find((r) => r.item_id === id && r.location_id === locationId)?.qty || 0)
   const sellable = items.filter((i) => i.sellable && i.active && Number(i.price) > 0)
-  const shown = sellable.filter((i) => !q || (i.name + i.sku).toLowerCase().includes(q.toLowerCase()))
+  const cats = [...new Set(sellable.map((i) => i.category))].sort()
+  const shown = sellable.filter((i) => (!q || (i.name + i.sku).toLowerCase().includes(q.toLowerCase())) && (!cat || i.category === cat))
+  const groups = cats.filter((c) => shown.some((i) => i.category === c))
   const add = (it) => setCart((c) => {
     const i = c.findIndex((l) => l.item_id === it.id)
     if (i >= 0) { const n = [...c]; n[i] = { ...n[i], qty: n[i].qty + 1 }; return n }
@@ -52,23 +56,32 @@ export default function POS() {
       <div className="grid gap-5 lg:grid-cols-5">
         <div className="space-y-3 lg:col-span-3">
           <ScanInput items={sellable} onItem={add} autoFocus continuous captureGlobal placeholder="Scan barcode (USB scanner or camera) or type SKU + Enter" />
-          <Input placeholder="Search products…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <div className="flex gap-2">
+            <Input placeholder="Search products…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Select className="w-52" value={cat} onChange={(e) => setCat(e.target.value)} placeholder="All product groups"
+              options={cats.map((c) => ({ value: c, label: `${c} (${sellable.filter((i) => i.category === c).length})` }))} />
+          </div>
+          {groups.map((g) => (<div key={g}>
+          <div className="mb-1.5 mt-2 text-xs font-semibold uppercase tracking-wider text-stone-500">{g}</div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {shown.map((it) => {
+            {shown.filter((i) => i.category === g).map((it) => {
               const s = stock(it.id)
               return (
                 <button key={it.id} onClick={() => add(it)} disabled={s <= 0}
-                  className={cx('rounded-xl border bg-white p-3 text-left shadow-sm transition hover:border-brand-400 hover:shadow disabled:opacity-40')}>
-                  <div className="text-xs text-stone-500">{it.category}</div>
+                  className={cx('overflow-hidden rounded-xl border bg-white text-left shadow-sm transition hover:border-brand-400 hover:shadow disabled:opacity-40')}>
+                  <img src={productImage(it)} alt="" className="h-24 w-full object-cover" />
+                  <div className="p-3 pt-2">
                   <div className="mt-0.5 line-clamp-2 min-h-[2.5rem] text-sm font-medium">{it.name}</div>
                   <div className="mt-1 flex items-center justify-between">
                     <span className="font-semibold">{money(it.price)}</span>
                     <Badge color={s <= 0 ? 'red' : s < 5 ? 'amber' : 'green'}>{s} here</Badge>
                   </div>
+                  </div>
                 </button>
               )
             })}
           </div>
+          </div>))}
         </div>
         <Card className="lg:col-span-2 self-start lg:sticky lg:top-20" title={`Cart (${cart.reduce((s, l) => s + l.qty, 0)} items)`}>
           <div className="space-y-2">
@@ -78,7 +91,7 @@ export default function POS() {
               return (
                 <div key={l.item_id} className="flex items-center gap-2 rounded-lg border border-stone-100 p-2">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{it?.name}</div>
+                    <div className="flex items-center gap-2"><img src={productImage(it)} alt="" className="h-8 w-10 shrink-0 rounded object-cover" /><div className="truncate text-sm font-medium">{it?.name}</div></div>
                     <div className={cx('text-xs', over ? 'text-red-600' : 'text-stone-500')}>{money(l.unit_price)} · {stock(l.item_id)} in stock{over && ' — not enough!'}</div>
                   </div>
                   <Button size="sm" variant="secondary" onClick={() => setQty(l.item_id, l.qty - 1)}><Minus className="h-3 w-3" /></Button>

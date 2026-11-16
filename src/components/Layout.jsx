@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ShoppingCart, ClipboardList, Undo2, Boxes, Package, Factory, Truck, Building2,
-  RefreshCcw, Network, Landmark, BarChart3, Users, Settings, Info, LogOut, Menu, Tag, Radio,
+  RefreshCcw, Network, Landmark, BarChart3, Users, Settings, Info, LogOut, Menu, Tag, Radio, TrendingUp,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth.jsx'
 import { useRealtimeSync } from '../lib/realtime.js'
@@ -26,6 +26,7 @@ const NAV = [
   { group: 'Supply chain', items: [
     { to: '/purchasing', label: 'Purchase Orders', icon: Truck },
     { to: '/suppliers', label: 'Suppliers & Scorecard', icon: Building2 },
+    { to: '/forecast', label: 'Demand Forecast', icon: TrendingUp },
     { to: '/replenishment', label: 'Replenishment (ROP/EOQ)', icon: RefreshCcw },
   ] },
   { group: 'Finance & insight', items: [

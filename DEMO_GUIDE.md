@@ -105,6 +105,12 @@ Sales by day/week/month with gross profit, top sellers, low stock with suggested
 - Log in as `emily.carter@example.com` (phone works well): catalog with **stock by location**, **available-to-promise** (stock minus what's already promised to other orders), and a **"ready by" date** when it isn't available. Place a pickup order → it appears instantly in staff Sales Orders, MRP and the Action Center; the customer sees status changes under *My orders*.
 - **Realtime:** the header says "Live — synced with all users". A sale on laptop A updates laptop B's inventory without refreshing, and B gets a toast ("Jordan Lee: POS sale POS-…"). Every action records the user's name (transaction history, activity feed).
 
+## Demand forecasting  (Supply chain → Demand Forecast)
+- Forecasts every item 4–12 weeks out from 26 weeks of real transactions with three methods: **moving average**, **exponential smoothing (α)** and **trend/Holt (α, β)**.
+- Each method is **back-tested** on the last 8 weeks; *Auto* picks the most accurate per item and shows accuracy (100% − MAPE), MAD and bias. The chart shows actuals, back-test forecasts, the forecast and an 80% range.
+- **Stockout risk:** days of cover = on hand ÷ forecast daily demand; shorter than lead time → "Order now".
+- Live test: drag the α slider or switch methods and the forecasts and accuracy recalculate. Say: *"Forecasting drives independent demand; MRP turns it into dependent demand for components."*
+
 ## Wow factors
 1. **Action Center** — an auto-prioritized to-do list built from live data across every module (backorders, late POs, items below ROP, bills due, quality holds, orders due), each clickable.
 2. **One-click plan → execution** — MRP and replenishment suggestions become real POs (grouped by supplier) and production orders.

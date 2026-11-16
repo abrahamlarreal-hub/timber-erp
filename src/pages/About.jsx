@@ -23,6 +23,7 @@ export default function About() {
           <ol className="list-decimal space-y-2 pl-5 text-sm text-stone-700">
             <li><b>Sales (POS / Sales Orders / Portal)</b> → fulfillment relieves inventory at weighted-average cost and posts Revenue, Discounts, Sales Tax, COGS and Cash/A-R to the general ledger.</li>
             <li><b>Inventory</b> is a perpetual ledger: every movement (sale, return, receipt, transfer, adjustment, production issue/receipt) is a row in <code>inv_txns</code> with its unit cost.</li>
+            <li><b>Demand forecast</b> reads the same ledger weekly, back-tests three forecasting methods and flags items that will run out before their lead time.</li>
             <li><b>Replenishment</b> reads that ledger: 180-day usage → average & standard deviation → safety stock, reorder point, EOQ, periodic order-up-to level.</li>
             <li><b>MRP</b> takes confirmed sales orders, explodes them through the BOMs level by level, nets on-hand and open POs/production orders, and offsets by lead time to plan buys and builds.</li>
             <li><b>Purchasing</b> receipts raise inventory, update weighted-average cost, and create payables due per supplier terms; the <b>supplier scorecard</b> is computed from that PO history.</li>

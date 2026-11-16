@@ -7,6 +7,7 @@ import { useItems, useLocations, useInventory, usePolicy, useReasons, useAction 
 import { money, qty, fmtDate, fmtDateTime } from '../lib/format'
 import { Button, Card, PageHeader, Table, Modal, Field, Select, Input, Badge, Stat, Tabs, cx } from '../components/ui.jsx'
 import { ScanInput, BarcodeSvg } from '../components/Barcode.jsx'
+import { productImage } from '../lib/productArt'
 
 export default function Inventory() {
   const [params, setParams] = useSearchParams()
@@ -58,7 +59,7 @@ export default function Inventory() {
         <Select value={filter} onChange={(e) => setFilter(e.target.value)} className="w-40 py-1.5" options={[{ value: 'all', label: 'All items' }, { value: 'low', label: 'Below ROP' }, { value: 'bo', label: 'Backordered' }, { value: 'hold', label: 'On quality hold' }]} />
       </>}>
         <Table rows={rows} onRowClick={(r) => setOpenItem(r.id)} maxHeight="65vh" columns={[
-          { label: 'Item', render: (r) => <div><div className="font-medium">{r.name}</div><div className="text-xs text-stone-500">{r.sku} · {r.uom}</div></div> },
+          { label: 'Item', render: (r) => <div className="flex items-center gap-2"><img src={productImage(r)} alt="" className="h-8 w-10 rounded object-cover" /><div><div className="font-medium">{r.name}</div><div className="text-xs text-stone-500">{r.sku} · {r.uom}</div></div></div> },
           ...locs.map((l) => ({ label: l.code, num: true, render: (r) => <span className={cx(r['loc_' + l.id] === 0 && 'text-stone-300', l.kind === 'quarantine' && r['loc_' + l.id] > 0 && 'font-semibold text-amber-700')}>{qty(r['loc_' + l.id])}</span> })),
           { label: 'Total', num: true, render: (r) => <b>{qty(r.total)}</b> },
           { label: 'On order', num: true, render: (r) => (Number(r.p.on_order) ? qty(r.p.on_order) : '') },
@@ -96,6 +97,7 @@ function ItemDrawer({ id, onClose, onAction }) {
         <Button onClick={() => onAction('count', it)}><ClipboardCheck className="h-4 w-4" />Cycle count</Button>
       </>}>
       <div className="mb-4 flex flex-wrap items-center gap-6">
+        <img src={productImage(it)} alt="" className="h-24 w-32 rounded-lg object-cover" />
         <BarcodeSvg value={it.barcode} height={40} />
         <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
           <div><dt className="text-xs text-stone-500">Avg cost</dt><dd>{money(it.avg_cost)}</dd></div>

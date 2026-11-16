@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Package, Plus, Trash2, Pencil, Layers } from 'lucide-react'
+import { Package, Plus, Trash2, Pencil, Layers, ImagePlus, X } from 'lucide-react'
 import { supabase, sel } from '../lib/supabase'
 import { useItems, useSuppliers, useAction } from '../lib/hooks'
 import { money, qty, num } from '../lib/format'
-import { Button, Card, PageHeader, Table, Modal, Field, Select, Input, Badge, Textarea } from '../components/ui.jsx'
+import { productImage } from '../lib/productArt'
+import { Button, Card, PageHeader, Table, Modal, Field, Select, Input, Badge, Textarea, useToast } from '../components/ui.jsx'
 
 export default function Items() {
   const items = useItems().data || []
@@ -12,17 +13,24 @@ export default function Items() {
   const [edit, setEdit] = useState(null)
   const [bomFor, setBomFor] = useState(null)
   const [q, setQ] = useState('')
+  const [cat, setCat] = useState('')
+  const [type, setType] = useState('')
   const isParent = (id) => boms.some((b) => b.parent_item_id === id)
   const rolled = (id) => boms.filter((b) => b.parent_item_id === id).reduce((s, b) => {
     const c = items.find((i) => i.id === b.component_item_id); return s + Number(b.qty_per) * Number(c?.avg_cost || c?.standard_cost || 0)
   }, 0)
-  const rows = items.filter((i) => !q || (i.name + i.sku + i.barcode + i.category).toLowerCase().includes(q.toLowerCase()))
+  const rows = items.filter((i) => (!q || (i.name + i.sku + i.barcode + i.category).toLowerCase().includes(q.toLowerCase())) && (!cat || i.category === cat) && (!type || i.item_type === type))
+  const cats = [...new Set(items.filter((i) => !type || i.item_type === type).map((i) => i.category))].sort()
   return (
     <>
       <PageHeader icon={Package} title="Items & Bills of Material" subtitle={`${items.length} items · ${new Set(boms.map((b) => b.parent_item_id)).size} parent items with BOMs`}
         actions={<Button onClick={() => setEdit({})}><Plus className="h-4 w-4" />New item</Button>} />
-      <Card padded={false} actions={<Input placeholder="Search…" className="w-60 py-1.5" value={q} onChange={(e) => setQ(e.target.value)} />} title="Item master">
+      <Card padded={false} title="Item master" subtitle={`${rows.length} shown`} actions={<>
+        <Select className="w-44 py-1.5" value={type} onChange={(e) => { setType(e.target.value); setCat('') }} placeholder="All item types" options={[{ value: 'finished', label: 'Made in-house' }, { value: 'resale', label: 'Resale' }, { value: 'component', label: 'Components / materials' }]} />
+        <Select className="w-48 py-1.5" value={cat} onChange={(e) => setCat(e.target.value)} placeholder="All product groups" options={cats.map((c) => ({ value: c, label: `${c} (${items.filter((i) => i.category === c).length})` }))} />
+        <Input placeholder="Search…" className="w-48 py-1.5" value={q} onChange={(e) => setQ(e.target.value)} /></>}>
         <Table rows={rows} maxHeight="70vh" columns={[
+          { label: '', render: (i) => <img src={productImage(i)} alt="" className="h-9 w-12 rounded object-cover" /> },
           { label: 'SKU', render: (i) => <span className="font-mono text-xs">{i.sku}</span> },
           { label: 'Name', render: (i) => <div className="font-medium">{i.name}{!i.active && <Badge className="ml-2">inactive</Badge>}</div> },
           { label: 'Barcode', render: (i) => <span className="font-mono text-xs">{i.barcode}</span> },
@@ -46,19 +54,35 @@ export default function Items() {
 
 function ItemModal({ item, onClose }) {
   const suppliers = useSuppliers().data || []
+  const groups = [...new Set((useItems().data || []).map((i) => i.category))].sort()
+  const [uploading, setUploading] = useState(false)
+  const toast = useToast()
+  const upload = async (file) => {
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) return toast.error('Photo must be under 5 MB')
+    setUploading(true)
+    const path = `items/${item.id || 'new'}-${Date.now()}.${(file.name.split('.').pop() || 'jpg').toLowerCase()}`
+    const { error } = await supabase.storage.from('product-images').upload(path, file, { upsert: true, contentType: file.type })
+    setUploading(false)
+    if (error) return toast.error('Upload failed: ' + error.message)
+    const { data } = supabase.storage.from('product-images').getPublicUrl(path)
+    setF((x) => ({ ...x, image_url: data.publicUrl }))
+    toast.success('Photo uploaded — click Save to keep it')
+  }
   const [f, setF] = useState({})
-  useEffect(() => { if (item) setF({ item_type: 'component', uom: 'ea', lead_time_days: 7, standard_cost: 0, price: 0, sellable: true, active: true, min_order_qty: 1, ...item }) }, [item])
+  useEffect(() => { if (item) setF({ item_type: 'component', uom: 'ea', lead_time_days: 7, standard_cost: 0, price: 0, sellable: true, active: true, min_order_qty: 1, ...item, _for: item.id ?? 'new' }) }, [item])
   const save = useAction(async () => {
     const row = {
       sku: f.sku, barcode: f.barcode, name: f.name, description: f.description, category: f.category, item_type: f.item_type, uom: f.uom,
       standard_cost: Number(f.standard_cost || 0), price: Number(f.price || 0), lead_time_days: Number(f.lead_time_days || 0),
       supplier_id: f.supplier_id ? Number(f.supplier_id) : null, sellable: !!f.sellable, active: !!f.active, min_order_qty: Number(f.min_order_qty || 1),
+      image_url: f.image_url || null,
       reorder_point_override: f.reorder_point_override === '' || f.reorder_point_override == null ? null : Number(f.reorder_point_override),
     }
     const q = item.id ? supabase.from('items').update(row).eq('id', item.id) : supabase.from('items').insert(row)
     const { error } = await q; if (error) throw new Error(error.message)
   }, { success: 'Item saved', onSuccess: onClose })
-  if (!item) return null
+  if (!item || f._for !== (item.id ?? 'new')) return null
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })
   const genBarcode = () => {
     const base = '8500127' + String(Math.floor(Math.random() * 9000) + 1000)
@@ -68,12 +92,24 @@ function ItemModal({ item, onClose }) {
   return (
     <Modal open onClose={onClose} title={item.id ? `Edit ${item.sku}` : 'New item'} wide
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={save.isPending} onClick={() => save.mutate()}>Save</Button></>}>
+      <div className="mb-4 flex items-center gap-4">
+        <img src={productImage(f)} alt="" className="h-28 w-36 rounded-lg border border-stone-200 object-cover" />
+        <div className="space-y-2 text-sm">
+          <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 py-2 font-medium shadow-sm hover:bg-stone-50">
+            <ImagePlus className="h-4 w-4" />{uploading ? 'Uploading…' : f.image_url ? 'Replace photo' : 'Upload photo'}
+            <input type="file" accept="image/*" capture="environment" className="hidden" disabled={uploading} onChange={(e) => upload(e.target.files?.[0])} />
+          </label>
+          {f.image_url && <Button size="sm" variant="ghost" onClick={() => setF({ ...f, image_url: null })}><X className="h-3.5 w-3.5" />Use illustration instead</Button>}
+          <p className="text-xs text-stone-500">On a phone this opens the camera. Without a photo, a built-in illustration is shown.</p>
+        </div>
+      </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <Field label="SKU"><Input value={f.sku || ''} onChange={set('sku')} /></Field>
         <Field label="Barcode"><div className="flex gap-1"><Input className="font-mono" value={f.barcode || ''} onChange={set('barcode')} /><Button variant="secondary" size="sm" onClick={genBarcode}>Gen</Button></div></Field>
         <Field label="Type"><Select value={f.item_type} onChange={set('item_type')} options={[{ value: 'finished', label: 'Finished (made in-house)' }, { value: 'component', label: 'Component / raw material' }, { value: 'resale', label: 'Resale (buy & sell)' }]} /></Field>
         <Field label="Name" className="sm:col-span-2"><Input value={f.name || ''} onChange={set('name')} /></Field>
-        <Field label="Category"><Input value={f.category || ''} onChange={set('category')} /></Field>
+        <Field label="Product group"><Input list="item-groups" value={f.category || ''} onChange={set('category')} placeholder="Pick or type a new group" />
+          <datalist id="item-groups">{groups.map((g) => <option key={g} value={g} />)}</datalist></Field>
         <Field label="Description" className="sm:col-span-3"><Textarea rows={2} value={f.description || ''} onChange={set('description')} /></Field>
         <Field label="Unit of measure"><Input value={f.uom || ''} onChange={set('uom')} /></Field>
         <Field label="Standard / purchase cost"><Input type="number" step="0.01" value={f.standard_cost} onChange={set('standard_cost')} /></Field>

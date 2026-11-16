@@ -10,6 +10,7 @@ export default function Labels() {
   const [copies, setCopies] = useState({})
   const [q, setQ] = useState('')
   const [big, setBig] = useState(true)
+  const [cat, setCat] = useState('')
   const sheet = items.flatMap((i) => Array.from({ length: Number(copies[i.id] || 0) }, () => i))
   const all = (n) => setCopies(Object.fromEntries(items.map((i) => [i.id, n])))
   return (
@@ -17,9 +18,9 @@ export default function Labels() {
       <PageHeader icon={Tag} title="Barcode Labels" subtitle="Print Code 128 labels to stick on bins, shelves and products. Works with USB scanners and phone cameras."
         actions={<><label className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={big} onChange={(e) => setBig(e.target.checked)} />Large (easier camera scans)</label><Button variant="secondary" onClick={() => all(1)}>1 of each</Button><Button variant="secondary" onClick={() => all(0)}>Clear</Button><Button onClick={() => window.print()} disabled={!sheet.length}><Printer className="h-4 w-4" />Print {sheet.length} labels</Button></>} />
       <div className="grid gap-5 lg:grid-cols-3">
-        <Card className="no-print" title="Choose labels" actions={<Input className="w-40 py-1" placeholder="Filter…" value={q} onChange={(e) => setQ(e.target.value)} />}>
+        <Card className="no-print" title="Choose labels" actions={<><select className="input w-36 py-1" value={cat} onChange={(e) => setCat(e.target.value)}><option value="">All groups</option>{[...new Set(items.map((i) => i.category))].sort().map((c) => <option key={c}>{c}</option>)}</select><Input className="w-32 py-1" placeholder="Filter…" value={q} onChange={(e) => setQ(e.target.value)} /></>}>
           <div className="max-h-[65vh] space-y-1 overflow-y-auto">
-            {items.filter((i) => !q || (i.name + i.sku).toLowerCase().includes(q.toLowerCase())).map((i) => (
+            {items.filter((i) => (!q || (i.name + i.sku).toLowerCase().includes(q.toLowerCase())) && (!cat || i.category === cat)).map((i) => (
               <div key={i.id} className="flex items-center gap-2 rounded px-1 py-1 hover:bg-stone-50">
                 <div className="min-w-0 flex-1"><div className="truncate text-sm">{i.name}</div><div className="font-mono text-[11px] text-stone-500">{i.barcode}</div></div>
                 <Input type="number" min="0" className="w-16 py-1" value={copies[i.id] || ''} onChange={(e) => setCopies({ ...copies, [i.id]: e.target.value })} />
