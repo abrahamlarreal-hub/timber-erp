@@ -19,6 +19,8 @@ P&L / valuation / turnover, management reports, a customer pickup portal, and re
    You should see `Simulated NNNN POS sales from … to …` in the output.
 4. **Project Settings → API**: copy the **Project URL** and the **anon public** key.
 
+> **Clean start (empty books):** `setup/06_clean_start.sql` erases all transactions and stock but keeps items, BOMs, suppliers, customers, settings and logins, and deposits starting cash (default $50,000 — edit the number at the top). Reorder points, EOQ, forecasts and scorecards stay at zero until new history builds up, so restore the demo data (below) before presenting.
+>
 > **Re-generating data before the demo:** the history always ends “yesterday”. The night before your demo,
 > run `setup/00_reset.sql`, then `setup/01_full_setup.sql` again, so today’s Action Center is fresh.
 > (Alternative to the SQL Editor: `psql "<connection string>" -f setup/01_full_setup.sql`.)
