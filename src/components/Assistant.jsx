@@ -8,7 +8,7 @@ import { Button, Badge, cx } from './ui.jsx'
 
 // ---------- tiny markdown renderer (bold, bullets, headings, paragraphs) ----------
 function Md({ text }) {
-  const inline = (s, k) => s.split(/(\*\*[^*]+\*\*)/g).map((p, i) => (p.startsWith('**') && p.endsWith('**') ? <b key={`${k}-${i}`}>{p.slice(2, -2)}</b> : <span key={`${k}-${i}`}>{p}</span>))
+  const inline = (s, k) => s.split(/(\*\*[^*]+\*\*|_[^_]+_)/g).map((p, i) => (p.startsWith('**') && p.endsWith('**') ? <b key={`${k}-${i}`}>{p.slice(2, -2)}</b> : p.length > 2 && p.startsWith('_') && p.endsWith('_') ? <i key={`${k}-${i}`} className="text-stone-500">{p.slice(1, -1)}</i> : <span key={`${k}-${i}`}>{p}</span>))
   const out = []; let list = null
   String(text || '').split('\n').forEach((raw, i) => {
     const line = raw.trimEnd()
@@ -65,7 +65,7 @@ function Proposal({ p }) {
 const today = () => isoDate()
 const QUICK = [
   {
-    q: 'What needs my attention today?',
+    q: 'What needs my attention today?', kw: ['attention', 'today', 'urgent', 'priorit', 'todo', 'to do', 'focus', 'problem', 'issue', 'summary', 'overview', 'happening'],
     run: async () => {
       const d = await rpc('dashboard')
       const order = { high: 0, medium: 1, low: 2 }
@@ -74,7 +74,7 @@ const QUICK = [
     },
   },
   {
-    q: 'What should I reorder?',
+    q: 'What should I reorder?', kw: ['reorder', 're-order', 'order more', 'running low', 'low stock', 'restock', 'replenish', 'rop', 'eoq', 'buy more', 'out of stock'],
     run: async () => {
       const rows = (await sel(supabase.from('v_inventory_policy').select('item_id,sku,name,uom,is_made,supplier_name,position,reorder_point,suggested_qty,unit_cost,order_by_date').eq('needs_reorder', true))) || []
       if (!rows.length) return { text: 'Nothing is at or below its reorder point right now.' }
@@ -85,7 +85,7 @@ const QUICK = [
     },
   },
   {
-    q: 'What does MRP say to buy or build?',
+    q: 'What does MRP say to buy or build?', kw: ['mrp', 'build', 'produce', 'production plan', 'make', 'materials', 'components', 'plan', 'bom'],
     run: async () => {
       const p = await rpc('mrp_plan', { p_weeks: 4 })
       if (!p.orders.length) return { text: 'MRP shows no shortages in the next 4 weeks — on-hand stock and open orders cover all confirmed sales orders.' }
@@ -97,21 +97,21 @@ const QUICK = [
     },
   },
   {
-    q: "What's backordered and when will it be available?",
+    q: "What's backordered and when will it be available?", kw: ['backorder', 'back order', 'available', 'eta', 'when will', 'short', 'shortage'],
     run: async () => {
       const rows = (await sel(supabase.from('v_inventory_policy').select('name,uom,backordered_qty,backorder_eta,on_order').gt('backordered_qty', 0))) || []
       return { text: rows.length ? `**${rows.length} item(s)** can't cover orders that are due now:\n${rows.map((r) => `- **${r.name}** — ${num(r.backordered_qty)} ${r.uom} short, est. available **${fmtShort(r.backorder_eta)}** (${num(r.on_order)} on order)`).join('\n')}` : 'Nothing is backordered — all orders due now can be filled from stock.' }
     },
   },
   {
-    q: 'Which purchase orders are late?',
+    q: 'Which purchase orders are late?', kw: ['late', 'overdue', 'purchase order', 'po', 'delivery', 'deliveries', 'shipment', 'arrive'],
     run: async () => {
       const rows = (await sel(supabase.from('purchase_orders').select('number,expected_date,supplier:suppliers(name)').in('status', ['Sent', 'Partially Received']).lt('expected_date', today()).order('expected_date'))) || []
       return { text: rows.length ? `**${rows.length} PO(s)** are past their expected date:\n${rows.map((r) => `- **${r.number}** from ${r.supplier.name} — expected ${fmtShort(r.expected_date)}`).join('\n')}\nCall the supplier to expedite; late deliveries also lower their scorecard.` : 'No purchase orders are late. 👍' }
     },
   },
   {
-    q: 'Which suppliers should we watch or replace?',
+    q: 'Which suppliers should we watch or replace?', kw: ['supplier', 'vendor', 'replace', 'scorecard', 'on-time', 'on time', 'fill rate', 'worst', 'best supplier'],
     run: async () => {
       const rows = (await sel(supabase.from('v_supplier_scorecard').select('name,score,rating,on_time_pct,fill_pct,avg_actual_lead,quoted_lead_days').order('score'))) || []
       const bad = rows.filter((r) => r.rating === 'Replace' || r.rating === 'Watch')
@@ -119,7 +119,7 @@ const QUICK = [
     },
   },
   {
-    q: 'How are sales this month vs last month?',
+    q: 'How are sales this month vs last month?', kw: ['sales', 'revenue', 'selling', 'sold', 'month', 'top seller', 'best seller', 'profit', 'margin'],
     run: async () => {
       const t = today(); const first = t.slice(0, 8) + '01'
       const lmFirst = addDays(first, -1).slice(0, 8) + '01'; const day = Number(t.slice(8))
@@ -132,7 +132,7 @@ const QUICK = [
     },
   },
   {
-    q: "What's our cash outlook?",
+    q: "What's our cash outlook?", kw: ['cash', 'money', 'bank', 'afford', 'payable', 'owe', 'bills', 'pay', 'receivable', 'forecast'],
     run: async () => {
       const f = await rpc('cash_forecast', { p_weeks: 8 })
       const last = f.weeks[f.weeks.length - 1]
@@ -140,7 +140,7 @@ const QUICK = [
     },
   },
   {
-    q: 'How is production quality (last 30 days)?',
+    q: 'How is production quality (last 30 days)?', kw: ['quality', 'scrap', 'yield', 'rework', 'defect', 'production', 'workshop', 'cycle'],
     run: async () => {
       const r = await rpc('production_report', { p_from: addDays(today(), -29), p_to: today() })
       const m = r.metrics || {}
@@ -149,6 +149,17 @@ const QUICK = [
     },
   },
 ]
+
+// free mode: match a typed question to the closest preset question by keywords
+function matchQuick(text) {
+  const t = ` ${text.toLowerCase()} `
+  let best = null; let score = 0
+  for (const it of QUICK) {
+    const s = it.kw.reduce((n, k) => n + (t.includes(k) ? (k.length > 4 ? 2 : 1) : 0), 0)
+    if (s > score) { best = it; score = s }
+  }
+  return best
+}
 
 const STARTERS = [
   'What needs my attention today, and what should I do first?',
@@ -176,18 +187,37 @@ export default function Assistant() {
     setBusy(false)
   }
 
+  const askQuick = async (text, note) => {
+    const qText = text.trim(); if (!qText || busy) return
+    setInput('')
+    const it = matchQuick(qText)
+    if (!it) {
+      setMsgs((m) => [...m, { role: 'user', text: qText, kind: 'quick' }, { role: 'assistant', kind: 'quick', text: `${note ? note + '\n' : ''}I can't answer that one in free mode. Try asking about: **reorders, MRP, backorders, late POs, suppliers, sales, cash or production quality** — or turn on AI mode for any question.` }])
+      return
+    }
+    setMsgs((m) => [...m, { role: 'user', text: qText, kind: 'quick' }]); setBusy(true)
+    try {
+      const r = await it.run()
+      setMsgs((m) => [...m, { role: 'assistant', kind: 'quick', text: `${note ? note + '\n' : ''}_Closest preset question:_ **${it.q}**\n${r.text}`, proposals: r.proposal ? [r.proposal] : [] }])
+    } catch (e) { setMsgs((m) => [...m, { role: 'assistant', kind: 'error', text: e.message }]) }
+    setBusy(false)
+  }
+
   const ask = async (question) => {
     const qText = question.trim(); if (!qText || busy) return
+    if (aiStatus === 'not_configured') return askQuick(qText, '(AI mode isn\'t switched on, so this is a free rule-based answer.)')
     setInput(''); setMsgs((m) => [...m, { role: 'user', text: qText, kind: 'ai' }]); setBusy(true)
     const { data, error } = await supabase.functions.invoke('ask-timber', { body: { question: qText, history } })
     setBusy(false)
     if (error) {
       let info = { message: error.message }
       try { info = await error.context.json() } catch { /* not JSON */ }
-      if (info.error === 'not_configured' || error.context?.status === 404) setAiStatus('not_configured')
-      setMsgs((m) => [...m, { role: 'assistant', kind: 'error', text: info.error === 'not_configured' || error.context?.status === 404
-        ? 'AI mode isn\'t switched on yet — it needs an Anthropic API key (see About / Tech Stack → "Turn on AI mode"). Quick answers work without it.'
-        : info.message || 'The assistant had a problem. Try again.' }])
+      if (info.error === 'not_configured' || error.context?.status === 404 || error.name === 'FunctionsFetchError' || error.name === 'FunctionsRelayError') {
+        setAiStatus('not_configured')
+        setMsgs((m) => m.slice(0, -1)) // re-ask through the free mode instead
+        return askQuick(qText, '(AI mode isn\'t switched on yet, so this is a free rule-based answer. See About / Tech Stack to turn on AI.)')
+      }
+      setMsgs((m) => [...m, { role: 'assistant', kind: 'error', text: info.message || 'The assistant had a problem. Try again.' }])
       return
     }
     setAiStatus('ok')
@@ -244,8 +274,14 @@ export default function Assistant() {
           </div>
 
           {mode === 'quick' ? (
-            <div className="max-h-56 space-y-1 overflow-y-auto border-t border-stone-100 p-2">
-              {QUICK.map((it) => <button key={it.q} disabled={busy} onClick={() => quick(it)} className="block w-full rounded-lg px-3 py-1.5 text-left text-sm hover:bg-brand-50 disabled:opacity-50">{it.q}</button>)}
+            <div className="border-t border-stone-100">
+              <div className="max-h-48 space-y-1 overflow-y-auto p-2">
+                {QUICK.map((it) => <button key={it.q} disabled={busy} onClick={() => quick(it)} className="block w-full rounded-lg px-3 py-1.5 text-left text-sm hover:bg-brand-50 disabled:opacity-50">{it.q}</button>)}
+              </div>
+              <form onSubmit={(e) => { e.preventDefault(); askQuick(input) }} className="flex gap-2 border-t border-stone-100 p-3">
+                <input className="input" placeholder="…or type a question (e.g. what's late?)" value={input} onChange={(e) => setInput(e.target.value)} disabled={busy} />
+                <Button disabled={busy || !input.trim()}><Send className="h-4 w-4" /></Button>
+              </form>
             </div>
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); ask(input) }} className="flex gap-2 border-t border-stone-100 p-3">
